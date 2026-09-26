@@ -9,7 +9,6 @@ use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\View\View;
 
@@ -141,7 +140,7 @@ class AuthController extends Controller
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user, string $password): void {
-                $user->password = Hash::make($password);
+                $user->setPassword($password);
                 $user->save();
 
                 event(new PasswordReset($user));
@@ -161,13 +160,14 @@ class AuthController extends Controller
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        $user = User::create([
+        $user = new User([
             'name' => $data['name'],
             'email' => strtolower($data['email']),
-            'password' => Hash::make($data['password']),
             'role' => 'Staff',
             'status' => 'active',
         ]);
+        $user->setPassword($data['password']);
+        $user->save();
 
         Alert::log('🆕', 'New User Registered', "{$user->name} ({$user->email}) just signed up.");
 

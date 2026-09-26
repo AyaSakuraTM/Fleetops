@@ -25,10 +25,12 @@ class UserManagementController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ]);
 
+        $passwordField = User::passwordColumnName();
+
         User::create([
             'name' => $data['name'],
             'email' => strtolower($data['email']),
-            'password' => Hash::make($data['password']),
+            $passwordField => Hash::make($data['password']),
             'role' => $data['role'],
             'status' => $data['status'],
         ]);
@@ -56,7 +58,7 @@ class UserManagementController extends Controller
         $user->status = $data['status'];
 
         if (! empty($data['password'])) {
-            $user->password = Hash::make($data['password']);
+            $user->{User::passwordColumnName()} = Hash::make($data['password']);
         }
 
         $user->save();
