@@ -12,6 +12,10 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * @property string|null $two_factor_code
+ * @property \Illuminate\Support\Carbon|null $two_factor_expires_at
+ */
 #[Fillable(['name', 'email', 'password', 'password_hash', 'role', 'status', 'preferences'])]
 #[Hidden(['password', 'password_hash', 'remember_token'])]
 class User extends Authenticatable

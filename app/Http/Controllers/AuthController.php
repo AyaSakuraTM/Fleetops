@@ -10,7 +10,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 class AuthController extends Controller
 {
@@ -24,12 +26,21 @@ class AuthController extends Controller
     {
         $credentials = $request->validate(['email' => ['required', 'email'], 'password' => ['required', 'string']]);
 
-        if (! Auth::validate($credentials) || Auth::getLastAttempted()?->status !== 'active') {
+        if (! Auth::validate($credentials)) {
             return back()->withErrors(['email' => 'Invalid email or password.'])->onlyInput('email');
         }
 
         $user = Auth::getLastAttempted();
-        $this->issueTwoFactorCode($user);
+
+        if (! $user instanceof User || $user->status !== 'active') {
+            return back()->withErrors(['email' => 'Invalid email or password.'])->onlyInput('email');
+        }
+
+        if (! $this->issueTwoFactorCode($user)) {
+            return back()
+                ->withErrors(['email' => 'We could not send a verification code. Please try again.'])
+                ->onlyInput('email');
+        }
 
         $request->session()->put('two_factor.user_id', $user->id);
         $request->session()->put('two_factor.remember', $request->boolean('remember'));
@@ -91,20 +102,34 @@ class AuthController extends Controller
             return back()->withErrors(['code' => 'Please wait a moment before requesting a new code.']);
         }
 
-        $this->issueTwoFactorCode($user);
+        if (! $this->issueTwoFactorCode($user)) {
+            return back()->withErrors(['code' => 'We could not send a verification code. Please try again.']);
+        }
 
         return back()->with('status', 'A new verification code has been sent to your email.');
     }
 
-    private function issueTwoFactorCode(User $user): void
+    private function issueTwoFactorCode(User $user): bool
     {
         $code = (string) random_int(100000, 999999);
 
         $user->two_factor_code = $code;
-        $user->two_factor_expires_at = now()->addMinutes(self::TWO_FACTOR_VALID_MINUTES);
+        $user->two_factor_expires_at = Carbon::now()->addMinutes(self::TWO_FACTOR_VALID_MINUTES);
         $user->save();
 
-        $user->notify(new TwoFactorCodeNotification($code, self::TWO_FACTOR_VALID_MINUTES));
+        try {
+            $user->notify(new TwoFactorCodeNotification($code, self::TWO_FACTOR_VALID_MINUTES));
+        } catch (TransportExceptionInterface $exception) {
+            $user->two_factor_code = null;
+            $user->two_factor_expires_at = null;
+            $user->save();
+
+            report($exception);
+
+            return false;
+        }
+
+        return true;
     }
 
     public function showForgotPassword(): View
