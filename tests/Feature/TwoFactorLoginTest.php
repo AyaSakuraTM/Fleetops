@@ -5,7 +5,8 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Notifications\TwoFactorCodeNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Notification;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class TwoFactorLoginTest extends TestCase
@@ -22,21 +23,9 @@ class TwoFactorLoginTest extends TestCase
         $this->assertLoginStartsTwoFactorForRole('Staff');
     }
 
-    public function test_smtp_failure_does_not_return_server_error_or_leave_an_unsent_code(): void
+    public function test_brevo_api_failure_does_not_return_server_error_or_leave_an_unsent_code(): void
     {
-        config([
-            'mail.default' => 'smtp',
-            'mail.mailers.smtp' => [
-                'transport' => 'smtp',
-                'scheme' => 'smtp',
-                'host' => '127.0.0.1',
-                'port' => 1,
-                'username' => null,
-                'password' => null,
-                'timeout' => 1,
-                'local_domain' => 'localhost',
-            ],
-        ]);
+        $this->fakeBrevoResponse(401);
 
         $user = User::factory()->create([
             'role' => 'Admin',
@@ -54,11 +43,12 @@ class TwoFactorLoginTest extends TestCase
         $user->refresh();
         $this->assertNull($user->two_factor_code);
         $this->assertNull($user->two_factor_expires_at);
+        $this->assertBrevoRequestWasSentTo($user);
     }
 
     private function assertLoginStartsTwoFactorForRole(string $role): void
     {
-        Notification::fake();
+        $this->fakeBrevoResponse(201);
 
         $user = User::factory()->create([
             'role' => $role,
@@ -76,6 +66,35 @@ class TwoFactorLoginTest extends TestCase
         $user->refresh();
         $this->assertNotEmpty($user->two_factor_code);
         $this->assertTrue($user->two_factor_expires_at->isFuture());
-        Notification::assertSentTo($user, TwoFactorCodeNotification::class);
+        $this->assertBrevoRequestWasSentTo($user);
+    }
+
+    private function fakeBrevoResponse(int $status): void
+    {
+        config([
+            'services.brevo.api_key' => 'test-brevo-api-key',
+            'mail.from.address' => 'fleetops@example.test',
+            'mail.from.name' => 'Fleetops Test',
+        ]);
+
+        Http::fake([
+            'https://api.brevo.com/v3/smtp/email' => Http::response([], $status),
+        ]);
+    }
+
+    private function assertBrevoRequestWasSentTo(User $user): void
+    {
+        Http::assertSent(function (Request $request) use ($user): bool {
+            $payload = $request->data();
+
+            return $request->method() === 'POST'
+                && $request->url() === 'https://api.brevo.com/v3/smtp/email'
+                && $request->hasHeader('api-key', 'test-brevo-api-key')
+                && ($payload['sender']['email'] ?? null) === 'fleetops@example.test'
+                && ($payload['sender']['name'] ?? null) === 'Fleetops Test'
+                && ($payload['to'][0]['email'] ?? null) === $user->email
+                && ($payload['subject'] ?? null) === 'Your sign-in verification code'
+                && str_contains((string) ($payload['textContent'] ?? ''), (string) $user->fresh()->two_factor_code);
+        });
     }
 }

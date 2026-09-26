@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Password;
 use Illuminate\View\View;
-use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use App\Notifications\Channels\BrevoApiException;
 
 class AuthController extends Controller
 {
@@ -119,7 +119,7 @@ class AuthController extends Controller
 
         try {
             $user->notify(new TwoFactorCodeNotification($code, self::TWO_FACTOR_VALID_MINUTES));
-        } catch (TransportExceptionInterface $exception) {
+        } catch (BrevoApiException $exception) {
             $user->two_factor_code = null;
             $user->two_factor_expires_at = null;
             $user->save();
