@@ -596,13 +596,19 @@ class ApiController
     {
         $curLat = $loc ? (float)$loc['latitude'] : (float)$trip['origin_lat'];
         $curLng = $loc ? (float)$loc['longitude'] : (float)$trip['origin_lng'];
-        $speed = ($loc && (float)$loc['speed'] > 0) ? (float)$loc['speed'] : 40.0;
+        $route = $this->requestOpenRouteServiceRoute(
+            $curLat,
+            $curLng,
+            (float)$trip['dest_lat'],
+            (float)$trip['dest_lng']
+        );
+        $summary = $route['routes'][0]['summary'] ?? $route['features'][0]['properties']['summary'] ?? null;
+        if (!is_array($summary) || !is_numeric($summary['distance'] ?? null) || !is_numeric($summary['duration'] ?? null)) {
+            throw new \RuntimeException('OpenRouteService response contains no valid route distance and duration.');
+        }
 
-        $remainingDistKm = round($this->haversineDistance($curLat, $curLng, (float)$trip['dest_lat'], (float)$trip['dest_lng']), 1);
-        
-        // Duration in hours & minutes
-        $timeHours = $remainingDistKm / max(10, $speed);
-        $timeMins = (int)round($timeHours * 60);
+        $remainingDistKm = round((float)$summary['distance'] / 1000, 1);
+        $timeMins = (int)round((float)$summary['duration'] / 60);
 
         $expectedArrivalTs = time() + ($timeMins * 60);
 
@@ -635,7 +641,7 @@ class ApiController
         return 'green';
     }
 
-    private function generateRouteWaypoints(array $trip, array $loc): array
+    private function requestOpenRouteServiceRoute(float $startLat, float $startLng, float $destLat, float $destLng): array
     {
         $apiKey = getenv('OPENROUTESERVICE_API_KEY');
         if ($apiKey === false || trim($apiKey) === '') {
@@ -648,8 +654,8 @@ class ApiController
 
         $requestBody = json_encode([
             'coordinates' => [
-                [(float)$trip['origin_lng'], (float)$trip['origin_lat']],
-                [(float)$trip['dest_lng'], (float)$trip['dest_lat']],
+                [$startLng, $startLat],
+                [$destLng, $destLat],
             ],
         ]);
         if ($requestBody === false) {
@@ -700,6 +706,17 @@ class ApiController
             throw new \RuntimeException('OpenRouteService returned an API error: ' . $apiError);
         }
 
+        return $response;
+    }
+
+    private function generateRouteWaypoints(array $trip, array $loc): array
+    {
+        $response = $this->requestOpenRouteServiceRoute(
+            (float)$trip['origin_lat'],
+            (float)$trip['origin_lng'],
+            (float)$trip['dest_lat'],
+            (float)$trip['dest_lng']
+        );
         $coordinates = $response['features'][0]['geometry']['coordinates'] ?? null;
         $encodedGeometry = $response['routes'][0]['geometry'] ?? null;
         if (is_string($encodedGeometry) && $encodedGeometry !== '') {
