@@ -711,9 +711,15 @@ class ApiController
 
     private function generateRouteWaypoints(array $trip, array $loc): array
     {
+        $currentLat = $loc['latitude'] ?? null;
+        $currentLng = $loc['longitude'] ?? null;
+        $hasValidCurrentLocation = is_numeric($currentLat) && is_numeric($currentLng) &&
+            (float)$currentLat >= -90 && (float)$currentLat <= 90 &&
+            (float)$currentLng >= -180 && (float)$currentLng <= 180;
+
         $response = $this->requestOpenRouteServiceRoute(
-            (float)$trip['origin_lat'],
-            (float)$trip['origin_lng'],
+            $hasValidCurrentLocation ? (float)$currentLat : (float)$trip['origin_lat'],
+            $hasValidCurrentLocation ? (float)$currentLng : (float)$trip['origin_lng'],
             (float)$trip['dest_lat'],
             (float)$trip['dest_lng']
         );
