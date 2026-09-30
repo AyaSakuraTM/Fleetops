@@ -48,6 +48,20 @@
     }
     .route-option-label { font-size: 0.8rem; font-weight: 800; }
     .route-option-summary { color: var(--muted); font-size: 0.74rem; line-height: 1.3; }
+    .route-destination-icon { background: transparent; border: 0; }
+    .route-destination-pin {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border: 3px solid #fff;
+        border-radius: 50% 50% 50% 4px;
+        background: #e76f51;
+        box-shadow: 0 3px 9px rgba(20, 33, 61, 0.35);
+        color: #fff;
+        transform: rotate(-45deg);
+    }
+    .route-destination-pin span { transform: rotate(45deg); font-size: 0.72rem; font-weight: 900; }
     @media (max-width: 420px) {
         .route-options { grid-template-columns: 1fr; }
     }
@@ -375,6 +389,7 @@
     let activeRoutePolyline = null;
     let activeTrafficPolyline = null;
     let routePolylines = [];
+    let activeDestinationMarker = null;
     let routeOptions = [];
     let selectedRouteIndex = 0;
     let activeRouteColor = 'green';
@@ -418,7 +433,7 @@
 
     function applyFleetFilters() {
         const filtered = getFilteredFleet();
-        renderFleetMarkers(filtered);
+        renderFleetMarkers();
         renderDispatchList(filtered);
     }
 
@@ -463,6 +478,13 @@
             .then(data => {
                 if (data.success && data.vehicles) {
                     fleetData = data.vehicles;
+                    if (activeVehicleId !== null && !fleetData.some(v => v.id === activeVehicleId)) {
+                        activeVehicleId = null;
+                        clearRouteDisplay();
+                        document.getElementById('empty-state').style.display = 'block';
+                        document.getElementById('active-vehicle-content').style.display = 'none';
+                    }
+
                     applyFleetFilters();
                     updateDashboardAnalytics();
                     loadNotifications();
@@ -470,7 +492,7 @@
                     if (activeVehicleId) {
                         const activeV = fleetData.find(v => v.id === activeVehicleId);
                         if (activeV) {
-                            displayVehicleDetails(activeV);
+                            displayVehicleDetails(activeV, false);
                         }
                     }
                 }
@@ -478,39 +500,42 @@
             .catch(err => console.error('Error fetching live vehicle data:', err));
     }
 
-    function renderFleetMarkers(vehicles) {
-        const visibleIds = new Set(vehicles.map(v => v.id));
-
+    function renderFleetMarkers() {
+        const selectedVehicle = fleetData.find(v => v.id === activeVehicleId);
         Object.keys(vehicleMarkers).forEach(id => {
-            if (!visibleIds.has(Number(id)) && map.hasLayer(vehicleMarkers[id])) {
-                map.removeLayer(vehicleMarkers[id]);
-            }
-        });
-
-        vehicles.forEach(v => {
-            const latLng = [v.latitude, v.longitude];
-            const icon = createTruckIcon(v.vehicle_code, v.status, v.speed, v.route_color);
-
-            if (vehicleMarkers[v.id]) {
-                vehicleMarkers[v.id].setLatLng(latLng);
-                vehicleMarkers[v.id].setIcon(icon);
-                if (!map.hasLayer(vehicleMarkers[v.id])) {
-                    vehicleMarkers[v.id].addTo(map);
+            if (!selectedVehicle || Number(id) !== selectedVehicle.id) {
+                if (map.hasLayer(vehicleMarkers[id])) {
+                    map.removeLayer(vehicleMarkers[id]);
                 }
-            } else {
-                const marker = L.marker(latLng, { icon: icon }).addTo(map);
-                marker.on('click', () => selectVehicle(v.id));
-                vehicleMarkers[v.id] = marker;
+                delete vehicleMarkers[id];
             }
         });
+
+        if (!selectedVehicle) return;
+
+        const latLng = [selectedVehicle.latitude, selectedVehicle.longitude];
+        const icon = createTruckIcon(selectedVehicle.vehicle_code, selectedVehicle.status, selectedVehicle.speed, selectedVehicle.route_color);
+
+        if (vehicleMarkers[selectedVehicle.id]) {
+            vehicleMarkers[selectedVehicle.id].setLatLng(latLng);
+            vehicleMarkers[selectedVehicle.id].setIcon(icon);
+            if (!map.hasLayer(vehicleMarkers[selectedVehicle.id])) {
+                vehicleMarkers[selectedVehicle.id].addTo(map);
+            }
+        } else {
+            const marker = L.marker(latLng, { icon: icon }).addTo(map);
+            marker.on('click', () => selectVehicle(selectedVehicle.id));
+            vehicleMarkers[selectedVehicle.id] = marker;
+        }
     }
 
     function selectVehicle(vehicleId) {
-        activeVehicleId = vehicleId;
         const v = fleetData.find(item => item.id === vehicleId);
         if (!v) return;
 
+        activeVehicleId = vehicleId;
         clearRouteDisplay();
+        renderFleetMarkers();
         displayVehicleDetails(v);
         loadTripRoute(v.active_trip_id || 101);
 
@@ -518,7 +543,7 @@
         map.panTo([v.latitude, v.longitude], { animate: true });
     }
 
-    function displayVehicleDetails(v) {
+    function displayVehicleDetails(v, updateEta = true) {
         document.getElementById('empty-state').style.display = 'none';
         document.getElementById('active-vehicle-content').style.display = 'block';
 
@@ -546,7 +571,7 @@
         routePill.className = 'status-pill-lg ' + v.route_color;
 
         // Fetch fresh ETA details for active trip
-        if (v.active_trip_id) {
+        if (updateEta && v.active_trip_id) {
             fetch(basePath + `/api/trip/${v.active_trip_id}/eta`)
                 .then(res => res.json())
                 .then(data => {
@@ -606,6 +631,7 @@
                         });
                     }
 
+                    setDestinationMarker(t.dest_coords);
                     drawRoutePolylines(routes.slice(0, 3), t.route_color);
                 }
             })
@@ -651,6 +677,7 @@
     function clearRouteDisplay() {
         routeRequestSequence++;
         clearRouteLayers();
+        clearDestinationMarker();
         routeOptions = [];
         selectedRouteIndex = 0;
 
@@ -660,6 +687,39 @@
         if (list) list.replaceChildren();
         if (count) count.textContent = '';
         if (panel) panel.hidden = true;
+    }
+
+    function clearDestinationMarker() {
+        if (activeDestinationMarker && map && map.hasLayer(activeDestinationMarker)) {
+            map.removeLayer(activeDestinationMarker);
+        }
+        activeDestinationMarker = null;
+    }
+
+    function setDestinationMarker(destinationCoords) {
+        clearDestinationMarker();
+        if (!Array.isArray(destinationCoords) || destinationCoords.length < 2) return;
+
+        const latitude = Number(destinationCoords[0]);
+        const longitude = Number(destinationCoords[1]);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+            Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return;
+
+        const icon = L.divIcon({
+            html: '<div class="route-destination-pin"><span>D</span></div>',
+            className: 'route-destination-icon',
+            iconSize: [40, 46],
+            iconAnchor: [20, 42],
+            popupAnchor: [0, -40]
+        });
+
+        activeDestinationMarker = L.marker([latitude, longitude], {
+            icon: icon,
+            title: 'Trip destination',
+            alt: 'Trip destination',
+            zIndexOffset: 1000
+        }).addTo(map);
+        activeDestinationMarker.bindTooltip('Destination', { direction: 'top', offset: [0, -10] });
     }
 
     function formatRouteDistance(route) {
