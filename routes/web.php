@@ -65,7 +65,6 @@ Route::prefix('api')->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\
     Route::get('/trip/{tripId}/route', [ApiController::class, 'getTripRoute'])->whereNumber('tripId');
     Route::get('/trip/{tripId}/eta', [ApiController::class, 'getTripEta'])->whereNumber('tripId');
     Route::post('/trip/start', [ApiController::class, 'startTrip']);
-    Route::post('/location/update', [ApiController::class, 'updateLocation']);
     Route::get('/analytics/dashboard', [ApiController::class, 'getDashboardAnalytics']);
     Route::get('/notifications', [ApiController::class, 'getNotifications']);
     Route::post('/integration/system', [ApiController::class, 'handleSystemIntegration']);
