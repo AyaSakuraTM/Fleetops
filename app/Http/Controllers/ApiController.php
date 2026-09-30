@@ -637,21 +637,121 @@ class ApiController
 
     private function generateRouteWaypoints(array $trip, array $loc): array
     {
-        $oLat = (float)$trip['origin_lat'];
-        $oLng = (float)$trip['origin_lng'];
-        $cLat = (float)$loc['latitude'];
-        $cLng = (float)$loc['longitude'];
-        $dLat = (float)$trip['dest_lat'];
-        $dLng = (float)$trip['dest_lng'];
+        $apiKey = getenv('OPENROUTESERVICE_API_KEY');
+        if ($apiKey === false || trim($apiKey) === '') {
+            throw new \RuntimeException('OpenRouteService API key is missing (OPENROUTESERVICE_API_KEY).');
+        }
 
-        // Build turn-by-turn road polyline points
-        return [
-            ['lat' => $oLat, 'lng' => $oLng, 'label' => 'Origin: ' . $trip['origin']],
-            ['lat' => $oLat + ($cLat - $oLat) * 0.5, 'lng' => $oLng + ($cLng - $oLng) * 0.4, 'label' => 'Expressway Ramp'],
-            ['lat' => $cLat, 'lng' => $cLng, 'label' => 'Current GPS Position'],
-            ['lat' => $cLat + ($dLat - $cLat) * 0.5, 'lng' => $cLng + ($dLng - $cLng) * 0.6, 'label' => 'Avenue Junction'],
-            ['lat' => $dLat, 'lng' => $dLng, 'label' => 'Destination: ' . $trip['destination']],
-        ];
+        if (!function_exists('curl_init')) {
+            throw new \RuntimeException('OpenRouteService routing requires the PHP cURL extension.');
+        }
+
+        $requestBody = json_encode([
+            'coordinates' => [
+                [(float)$trip['origin_lng'], (float)$trip['origin_lat']],
+                [(float)$trip['dest_lng'], (float)$trip['dest_lat']],
+            ],
+        ]);
+        if ($requestBody === false) {
+            throw new \RuntimeException('Unable to encode the OpenRouteService routing request.');
+        }
+
+        $curl = curl_init('https://api.heigit.org/openrouteservice/v2/directions/driving-car');
+        if ($curl === false) {
+            throw new \RuntimeException('Unable to initialize the OpenRouteService HTTP request.');
+        }
+
+        curl_setopt_array($curl, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $requestBody,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: ' . $apiKey,
+                'Content-Type: application/json',
+                'Accept: application/json',
+            ],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 30,
+        ]);
+
+        $responseBody = curl_exec($curl);
+        $curlError = curl_error($curl);
+        $httpStatus = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+
+        if ($responseBody === false) {
+            throw new \RuntimeException('OpenRouteService HTTP request failed: ' . $curlError);
+        }
+
+        $response = json_decode($responseBody, true);
+        if ($httpStatus < 200 || $httpStatus >= 300) {
+            $apiError = is_array($response)
+                ? ($response['error']['message'] ?? $response['message'] ?? 'No details provided.')
+                : 'No details provided.';
+            throw new \RuntimeException("OpenRouteService returned HTTP {$httpStatus}: {$apiError}");
+        }
+
+        if (!is_array($response)) {
+            throw new \RuntimeException('OpenRouteService returned an invalid JSON response.');
+        }
+
+        if (isset($response['error'])) {
+            $apiError = $response['error']['message'] ?? $response['message'] ?? 'No details provided.';
+            throw new \RuntimeException('OpenRouteService returned an API error: ' . $apiError);
+        }
+
+        $coordinates = $response['features'][0]['geometry']['coordinates'] ?? null;
+        $encodedGeometry = $response['routes'][0]['geometry'] ?? null;
+        if (is_string($encodedGeometry) && $encodedGeometry !== '') {
+            $coordinates = [];
+            $index = 0;
+            $latitude = 0;
+            $longitude = 0;
+            $encodedLength = strlen($encodedGeometry);
+
+            while ($index < $encodedLength) {
+                $deltas = [];
+                for ($axis = 0; $axis < 2; $axis++) {
+                    $result = 0;
+                    $shift = 0;
+                    do {
+                        if ($index >= $encodedLength) {
+                            throw new \RuntimeException('OpenRouteService returned invalid route geometry.');
+                        }
+
+                        $byte = ord($encodedGeometry[$index++]) - 63;
+                        if ($byte < 0 || $byte > 63) {
+                            throw new \RuntimeException('OpenRouteService returned invalid route geometry.');
+                        }
+
+                        $result |= ($byte & 0x1f) << $shift;
+                        $shift += 5;
+                    } while ($byte >= 0x20);
+
+                    $deltas[] = ($result & 1) ? ~($result >> 1) : ($result >> 1);
+                }
+
+                $latitude += $deltas[0];
+                $longitude += $deltas[1];
+                $coordinates[] = [$longitude / 100000, $latitude / 100000];
+            }
+        }
+
+        if (!is_array($coordinates) || $coordinates === []) {
+            throw new \RuntimeException('OpenRouteService response contains no route geometry.');
+        }
+
+        $waypoints = [];
+        foreach ($coordinates as $coordinate) {
+            if (!is_array($coordinate) || !isset($coordinate[0], $coordinate[1]) ||
+                !is_numeric($coordinate[0]) || !is_numeric($coordinate[1])) {
+                throw new \RuntimeException('OpenRouteService returned invalid route geometry.');
+            }
+
+            $waypoints[] = ['lat' => (float)$coordinate[1], 'lng' => (float)$coordinate[0]];
+        }
+
+        return $waypoints;
     }
 
     private function haversineDistance(float $lat1, float $lon1, float $lat2, float $lon2): float
