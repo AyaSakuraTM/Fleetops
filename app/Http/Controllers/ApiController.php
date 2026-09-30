@@ -174,10 +174,12 @@ class ApiController
             'fuel_level' => 85.0
         ];
 
-        // Generate turn-by-turn geometry polylines from origin through current position to destination
-        $waypoints = $this->generateRouteWaypoints($trip, $loc);
+        // Use one current-position route response for primary geometry, alternatives, and ETA.
+        $routeResponse = $this->requestOpenRouteServiceRouteForTrip($trip, $loc);
+        $waypoints = $this->generateRouteWaypoints($trip, $loc, $routeResponse);
+        $alternativeRoutes = $this->buildAlternativeRoutes($routeResponse, $trip, $loc, $waypoints);
         $routeColor = $this->calculateRouteColor($trip, (float)$loc['speed']);
-        $eta = $this->computeEtaDetails($trip, $loc);
+        $eta = $this->computeEtaDetails($trip, $loc, $routeResponse);
 
         $trafficDelays = [];
         if ($routeColor === 'yellow') {
@@ -213,6 +215,7 @@ class ApiController
                 'status' => $trip['status'],
                 'route_color' => $routeColor, // green, yellow, red
                 'waypoints' => $waypoints,
+                'routes' => $alternativeRoutes,
                 'traffic_delays' => $trafficDelays,
                 'eta' => $eta,
             ],
@@ -592,17 +595,10 @@ class ApiController
     }
 
     // Helper utilities
-    private function computeEtaDetails(array $trip, ?array $loc): array
+    private function computeEtaDetails(array $trip, ?array $loc, ?array $routeResponse = null): array
     {
-        $curLat = $loc ? (float)$loc['latitude'] : (float)$trip['origin_lat'];
-        $curLng = $loc ? (float)$loc['longitude'] : (float)$trip['origin_lng'];
-        $route = $this->requestOpenRouteServiceRoute(
-            $curLat,
-            $curLng,
-            (float)$trip['dest_lat'],
-            (float)$trip['dest_lng']
-        );
-        $summary = $route['routes'][0]['summary'] ?? $route['features'][0]['properties']['summary'] ?? null;
+        $routeResponse = $routeResponse ?? $this->requestOpenRouteServiceRouteForTrip($trip, $loc);
+        $summary = $this->getOpenRouteServiceSummary($routeResponse);
         if (!is_array($summary) || !is_numeric($summary['distance'] ?? null) || !is_numeric($summary['duration'] ?? null)) {
             throw new \RuntimeException('OpenRouteService response contains no valid route distance and duration.');
         }
@@ -641,6 +637,55 @@ class ApiController
         return 'green';
     }
 
+    private function requestOpenRouteServiceRouteForTrip(array $trip, ?array $loc): array
+    {
+        $currentLat = $loc['latitude'] ?? null;
+        $currentLng = $loc['longitude'] ?? null;
+        $hasValidCurrentLocation = is_numeric($currentLat) && is_numeric($currentLng) &&
+            (float)$currentLat >= -90 && (float)$currentLat <= 90 &&
+            (float)$currentLng >= -180 && (float)$currentLng <= 180;
+
+        return $this->requestOpenRouteServiceRoute(
+            $hasValidCurrentLocation ? (float)$currentLat : (float)$trip['origin_lat'],
+            $hasValidCurrentLocation ? (float)$currentLng : (float)$trip['origin_lng'],
+            (float)$trip['dest_lat'],
+            (float)$trip['dest_lng']
+        );
+    }
+
+    private function getOpenRouteServiceSummary(array $response): ?array
+    {
+        $routes = $response['routes'] ?? null;
+        if (is_array($routes) && isset($routes[0]) && is_array($routes[0])) {
+            $summary = $routes[0]['summary'] ?? null;
+            if (is_array($summary)) {
+                return $summary;
+            }
+        }
+
+        $features = $response['features'] ?? null;
+        if (is_array($features) && isset($features[0]) && is_array($features[0])) {
+            $properties = $features[0]['properties'] ?? null;
+            if (is_array($properties) && is_array($properties['summary'] ?? null)) {
+                return $properties['summary'];
+            }
+        }
+
+        return null;
+    }
+
+    private function formatRouteTravelTime(int $timeMins): string
+    {
+        $hours = intdiv($timeMins, 60);
+        $minutes = $timeMins % 60;
+
+        if ($hours > 0) {
+            return "{$hours} hr" . ($minutes > 0 ? " {$minutes} mins" : '');
+        }
+
+        return "{$timeMins} mins";
+    }
+
     private function requestOpenRouteServiceRoute(float $startLat, float $startLng, float $destLat, float $destLng): array
     {
         $apiKey = getenv('OPENROUTESERVICE_API_KEY');
@@ -656,6 +701,9 @@ class ApiController
             'coordinates' => [
                 [$startLng, $startLat],
                 [$destLng, $destLat],
+            ],
+            'alternative_routes' => [
+                'target_count' => 3,
             ],
         ]);
         if ($requestBody === false) {
@@ -709,22 +757,19 @@ class ApiController
         return $response;
     }
 
-    private function generateRouteWaypoints(array $trip, array $loc): array
+    private function generateRouteWaypoints(array $trip, array $loc, ?array $routeResponse = null): array
     {
-        $currentLat = $loc['latitude'] ?? null;
-        $currentLng = $loc['longitude'] ?? null;
-        $hasValidCurrentLocation = is_numeric($currentLat) && is_numeric($currentLng) &&
-            (float)$currentLat >= -90 && (float)$currentLat <= 90 &&
-            (float)$currentLng >= -180 && (float)$currentLng <= 180;
+        $routeResponse = $routeResponse ?? $this->requestOpenRouteServiceRouteForTrip($trip, $loc);
+        $coordinates = null;
+        $features = $routeResponse['features'] ?? null;
+        $feature = is_array($features) ? ($features[0] ?? null) : null;
+        if (is_array($feature) && is_array($feature['geometry'] ?? null)) {
+            $coordinates = $feature['geometry']['coordinates'] ?? null;
+        }
 
-        $response = $this->requestOpenRouteServiceRoute(
-            $hasValidCurrentLocation ? (float)$currentLat : (float)$trip['origin_lat'],
-            $hasValidCurrentLocation ? (float)$currentLng : (float)$trip['origin_lng'],
-            (float)$trip['dest_lat'],
-            (float)$trip['dest_lng']
-        );
-        $coordinates = $response['features'][0]['geometry']['coordinates'] ?? null;
-        $encodedGeometry = $response['routes'][0]['geometry'] ?? null;
+        $routes = $routeResponse['routes'] ?? null;
+        $primaryRoute = is_array($routes) ? ($routes[0] ?? null) : null;
+        $encodedGeometry = is_array($primaryRoute) ? ($primaryRoute['geometry'] ?? null) : null;
         if (is_string($encodedGeometry) && $encodedGeometry !== '') {
             $coordinates = [];
             $index = 0;
@@ -758,6 +803,8 @@ class ApiController
                 $longitude += $deltas[1];
                 $coordinates[] = [$longitude / 100000, $latitude / 100000];
             }
+        } elseif (is_array($encodedGeometry)) {
+            $coordinates = $encodedGeometry;
         }
 
         if (!is_array($coordinates) || $coordinates === []) {
@@ -775,6 +822,81 @@ class ApiController
         }
 
         return $waypoints;
+    }
+
+    private function buildAlternativeRoutes(array $response, array $trip, array $loc, array $primaryWaypoints): array
+    {
+        $candidates = [];
+        $routeFormat = 'routes';
+        $orsRoutes = $response['routes'] ?? null;
+        if (is_array($orsRoutes)) {
+            foreach ($orsRoutes as $index => $route) {
+                if (is_array($route)) {
+                    $candidates[] = ['index' => (int)$index, 'route' => $route];
+                }
+            }
+        }
+
+        if ($candidates === []) {
+            $routeFormat = 'features';
+            $features = $response['features'] ?? null;
+            if (is_array($features)) {
+                foreach ($features as $index => $feature) {
+                    if (is_array($feature)) {
+                        $candidates[] = ['index' => (int)$index, 'route' => $feature];
+                    }
+                }
+            }
+        }
+
+        // ORS returns the selected primary route first; retain that ordering in the API response.
+        if ($candidates === [] || $candidates[0]['index'] !== 0) {
+            return [];
+        }
+
+        $routeOptions = [];
+        foreach ($candidates as $candidate) {
+            if ($candidate['index'] >= 3) {
+                continue;
+            }
+
+            $route = $candidate['route'];
+            if ($routeFormat === 'routes') {
+                $summary = $route['summary'] ?? null;
+            } else {
+                $properties = $route['properties'] ?? null;
+                $summary = is_array($properties) ? ($properties['summary'] ?? null) : null;
+            }
+
+            if (!is_array($summary) || !is_numeric($summary['distance'] ?? null) ||
+                !is_numeric($summary['duration'] ?? null) || (float)$summary['distance'] < 0 ||
+                (float)$summary['duration'] < 0) {
+                continue;
+            }
+
+            if ($candidate['index'] === 0) {
+                $waypoints = $primaryWaypoints;
+            } else {
+                $candidateResponse = [$routeFormat => [$route]];
+                try {
+                    $waypoints = $this->generateRouteWaypoints($trip, $loc, $candidateResponse);
+                } catch (\RuntimeException $exception) {
+                    continue;
+                }
+            }
+
+            $timeMins = (int)round((float)$summary['duration'] / 60);
+            $routeOptions[] = [
+                'route_number' => count($routeOptions) + 1,
+                'route_index' => $candidate['index'],
+                'waypoints' => $waypoints,
+                'distance_km' => round((float)$summary['distance'] / 1000, 1),
+                'travel_time_mins' => $timeMins,
+                'formatted_travel_time' => $this->formatRouteTravelTime($timeMins),
+            ];
+        }
+
+        return $routeOptions;
     }
 
     private function haversineDistance(float $lat1, float $lon1, float $lat2, float $lon2): float

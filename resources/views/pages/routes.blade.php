@@ -1,6 +1,57 @@
 <!-- Leaflet.js CSS & FontAwesome Icons -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<style>
+    .route-selection-panel {
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid var(--border);
+    }
+    .route-selection-panel[hidden] { display: none; }
+    .route-selection-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 9px;
+    }
+    .route-selection-heading h4 { margin: 0; font-size: 0.9rem; color: var(--text); }
+    .route-selection-count { color: var(--muted); font-size: 0.75rem; }
+    .route-options {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 120px), 1fr));
+        gap: 8px;
+    }
+    .route-option {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 4px;
+        min-width: 0;
+        min-height: 58px;
+        padding: 9px 11px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface);
+        color: var(--text);
+        text-align: left;
+        cursor: pointer;
+        transition: border-color 0.15s ease, background 0.15s ease, opacity 0.15s ease;
+    }
+    .route-option:hover { border-color: var(--teal); }
+    .route-option:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+    .route-option.is-selected {
+        border-color: var(--teal);
+        box-shadow: inset 3px 0 0 var(--teal);
+        background: rgba(23, 162, 184, 0.09);
+    }
+    .route-option-label { font-size: 0.8rem; font-weight: 800; }
+    .route-option-summary { color: var(--muted); font-size: 0.74rem; line-height: 1.3; }
+    @media (max-width: 420px) {
+        .route-options { grid-template-columns: 1fr; }
+    }
+</style>
 
 <div class="tracking-module-wrapper">
     <!-- Top Analytics Overview Bar -->
@@ -185,6 +236,14 @@
                         </div>
                     </div>
 
+                    <div class="route-selection-panel" id="route-selection-panel" hidden>
+                        <div class="route-selection-heading">
+                            <h4>Route Options</h4>
+                            <span class="route-selection-count" id="route-selection-count"></span>
+                        </div>
+                        <div class="route-options" id="route-options" role="group" aria-label="Select a driving route"></div>
+                    </div>
+
                     <!-- Arrival Monitoring Action Box -->
                     <div id="arrival-alert-box" class="arrival-success-box" style="display: none;">
                         <h4>🎉 Arrival Detected!</h4>
@@ -315,6 +374,11 @@
     let vehicleMarkers = {};
     let activeRoutePolyline = null;
     let activeTrafficPolyline = null;
+    let routePolylines = [];
+    let routeOptions = [];
+    let selectedRouteIndex = 0;
+    let activeRouteColor = 'green';
+    let routeRequestSequence = 0;
     let activeVehicleId = null;
     let fleetData = [];
     let refreshInterval = null;
@@ -446,6 +510,7 @@
         const v = fleetData.find(item => item.id === vehicleId);
         if (!v) return;
 
+        clearRouteDisplay();
         displayVehicleDetails(v);
         loadTripRoute(v.active_trip_id || 101);
 
@@ -486,9 +551,11 @@
                 .then(res => res.json())
                 .then(data => {
                     if (data.success && data.eta) {
-                        document.getElementById('eta-dist').innerText = data.eta.remaining_distance_km + ' km';
-                        document.getElementById('eta-time').innerText = data.eta.remaining_time_formatted;
-                        document.getElementById('eta-arrival').innerText = data.eta.expected_arrival_time;
+                        if (selectedRouteIndex === 0) {
+                            document.getElementById('eta-dist').innerText = data.eta.remaining_distance_km + ' km';
+                            document.getElementById('eta-time').innerText = data.eta.remaining_time_formatted;
+                            document.getElementById('eta-arrival').innerText = data.eta.expected_arrival_time;
+                        }
 
                         // Check arrival threshold
                         if (data.eta.remaining_distance_km <= 0.05) {
@@ -502,33 +569,204 @@
     }
 
     function loadTripRoute(tripId) {
+        const requestSequence = ++routeRequestSequence;
         fetch(basePath + `/api/trip/${tripId}/route`)
             .then(res => res.json())
             .then(data => {
+                if (requestSequence !== routeRequestSequence) return;
                 if (data.success && data.trip) {
                     const t = data.trip;
-                    drawRoutePolylines(t.waypoints, t.route_color);
+
+                    const routes = Array.isArray(t.routes)
+                        ? t.routes.map((route, index) => normalizeRouteOption(route, index)).filter(Boolean)
+                        : [];
+                    const primaryWaypoints = normalizeRouteOption({ waypoints: t.waypoints }, 0);
+
+                    if (routes.length > 0 && routes[0].route_index === 0) {
+                        if (primaryWaypoints) routes[0].waypoints = primaryWaypoints.waypoints;
+                    } else if (primaryWaypoints) {
+                        routes.unshift({
+                            route_number: 1,
+                            route_index: 0,
+                            waypoints: primaryWaypoints.waypoints,
+                            distance_km: t.eta ? t.eta.remaining_distance_km : null,
+                            travel_time_mins: t.eta ? t.eta.remaining_travel_time_mins : null,
+                            formatted_travel_time: t.eta ? t.eta.remaining_time_formatted : null
+                        });
+                    }
+
+                    if (routes.length === 0 && primaryWaypoints) {
+                        routes.push({
+                            route_number: 1,
+                            route_index: 0,
+                            waypoints: primaryWaypoints.waypoints,
+                            distance_km: t.eta ? t.eta.remaining_distance_km : null,
+                            travel_time_mins: t.eta ? t.eta.remaining_travel_time_mins : null,
+                            formatted_travel_time: t.eta ? t.eta.remaining_time_formatted : null
+                        });
+                    }
+
+                    drawRoutePolylines(routes.slice(0, 3), t.route_color);
                 }
             })
-            .catch(err => console.error('Error fetching route:', err));
+            .catch(err => {
+                if (requestSequence === routeRequestSequence) {
+                    console.error('Error fetching route:', err);
+                }
+            });
     }
 
-    function drawRoutePolylines(waypoints, routeColor) {
-        // Clear old polylines
-        if (activeRoutePolyline) map.removeLayer(activeRoutePolyline);
-        if (activeTrafficPolyline) map.removeLayer(activeTrafficPolyline);
+    function normalizeRouteOption(route, index) {
+        if (!route || typeof route !== 'object' || !Array.isArray(route.waypoints)) return null;
 
-        const latLngs = waypoints.map(w => [w.lat, w.lng]);
-        const colorHex = routeColor === 'red' ? '#e74c3c' : (routeColor === 'yellow' ? '#f39c12' : '#2ec4b6');
+        const waypoints = route.waypoints.filter(point => {
+            if (!point || point.lat === null || point.lat === undefined || point.lng === null || point.lng === undefined) return false;
+            const lat = Number(point.lat);
+            const lng = Number(point.lng);
+            return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+        });
+        if (waypoints.length < 2) return null;
 
-        activeRoutePolyline = L.polyline(latLngs, {
-            color: colorHex,
-            weight: 6,
-            opacity: 0.85,
-            dashArray: routeColor === 'yellow' ? '8, 8' : null
-        }).addTo(map);
+        return {
+            ...route,
+            route_number: route.route_number || index + 1,
+            route_index: Number.isInteger(Number(route.route_index)) ? Number(route.route_index) : index,
+            waypoints
+        };
+    }
 
-        map.fitBounds(activeRoutePolyline.getBounds(), { padding: [40, 40] });
+    function clearRouteLayers() {
+        routePolylines.forEach(polyline => {
+            if (map && map.hasLayer(polyline)) map.removeLayer(polyline);
+        });
+        routePolylines = [];
+
+        if (activeTrafficPolyline && map && map.hasLayer(activeTrafficPolyline)) {
+            map.removeLayer(activeTrafficPolyline);
+        }
+        activeTrafficPolyline = null;
+        activeRoutePolyline = null;
+    }
+
+    function clearRouteDisplay() {
+        routeRequestSequence++;
+        clearRouteLayers();
+        routeOptions = [];
+        selectedRouteIndex = 0;
+
+        const panel = document.getElementById('route-selection-panel');
+        const list = document.getElementById('route-options');
+        const count = document.getElementById('route-selection-count');
+        if (list) list.replaceChildren();
+        if (count) count.textContent = '';
+        if (panel) panel.hidden = true;
+    }
+
+    function formatRouteDistance(route) {
+        const distance = Number(route.distance_km);
+        return Number.isFinite(distance) ? `${distance.toFixed(1)} km` : 'Distance unavailable';
+    }
+
+    function formatRouteTime(route) {
+        if (typeof route.formatted_travel_time === 'string' && route.formatted_travel_time.trim()) {
+            return route.formatted_travel_time;
+        }
+        const minutes = Number(route.travel_time_mins);
+        return Number.isFinite(minutes) ? `${Math.round(minutes)} mins` : 'Travel time unavailable';
+    }
+
+    function renderRouteOptions() {
+        const panel = document.getElementById('route-selection-panel');
+        const list = document.getElementById('route-options');
+        const count = document.getElementById('route-selection-count');
+        if (!panel || !list || !count) return;
+
+        list.replaceChildren();
+        panel.hidden = routeOptions.length === 0;
+        count.textContent = `${routeOptions.length} ${routeOptions.length === 1 ? 'route' : 'routes'}`;
+
+        routeOptions.forEach((route, index) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'route-option';
+            button.dataset.routePosition = String(index);
+            button.setAttribute('aria-pressed', index === selectedRouteIndex ? 'true' : 'false');
+
+            const label = document.createElement('span');
+            label.className = 'route-option-label';
+            label.textContent = `Route ${route.route_number || index + 1}`;
+
+            const summary = document.createElement('span');
+            summary.className = 'route-option-summary';
+            summary.textContent = `${formatRouteDistance(route)} • ${formatRouteTime(route)}`;
+
+            button.append(label, summary);
+            button.addEventListener('click', () => selectRoute(index));
+            list.appendChild(button);
+        });
+    }
+
+    function selectRoute(routePosition) {
+        const route = routeOptions[routePosition];
+        if (!route) return;
+
+        selectedRouteIndex = routePosition;
+        const selectedColor = activeRouteColor === 'red' ? '#e74c3c' : (activeRouteColor === 'yellow' ? '#f39c12' : '#2ec4b6');
+
+        routePolylines.forEach((polyline, index) => {
+            const isSelected = index === routePosition;
+            polyline.setStyle({
+                color: isSelected ? selectedColor : (index === 1 ? '#77858d' : '#9aa5aa'),
+                weight: isSelected ? 7 : 4,
+                opacity: isSelected ? 0.95 : 0.48,
+                dashArray: isSelected ? null : (index === 1 ? '7, 7' : '2, 7')
+            });
+            if (isSelected) polyline.bringToFront();
+        });
+
+        activeRoutePolyline = routePolylines[routePosition] || null;
+        document.querySelectorAll('.route-option').forEach((button, index) => {
+            const isSelected = index === routePosition;
+            button.classList.toggle('is-selected', isSelected);
+            button.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+        });
+
+        const distance = Number(route.distance_km);
+        if (Number.isFinite(distance)) {
+            document.getElementById('eta-dist').textContent = `${distance.toFixed(1)} km`;
+        }
+
+        const minutes = Number(route.travel_time_mins);
+        if (Number.isFinite(minutes)) {
+            document.getElementById('eta-time').textContent = formatRouteTime(route);
+            const arrival = new Date(Date.now() + Math.round(minutes) * 60000);
+            document.getElementById('eta-arrival').textContent = arrival.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        }
+
+        if (activeRoutePolyline) {
+            map.fitBounds(activeRoutePolyline.getBounds(), { padding: [40, 40] });
+        }
+    }
+
+    function drawRoutePolylines(routes, routeColor) {
+        clearRouteLayers();
+        routeOptions = routes;
+        activeRouteColor = routeColor || 'green';
+
+        routeOptions.forEach((route, index) => {
+            const latLngs = route.waypoints.map(point => [Number(point.lat), Number(point.lng)]);
+            const polyline = L.polyline(latLngs, {
+                color: index === 1 ? '#77858d' : '#9aa5aa',
+                weight: 4,
+                opacity: 0.48,
+                dashArray: index === 1 ? '7, 7' : '2, 7'
+            }).addTo(map);
+            polyline.on('click', () => selectRoute(index));
+            routePolylines.push(polyline);
+        });
+
+        renderRouteOptions();
+        if (routeOptions.length > 0) selectRoute(0);
     }
 
     function renderDispatchList(vehicles) {
