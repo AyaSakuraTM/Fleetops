@@ -576,26 +576,6 @@
                         <span class="tb-badge red" id="bellBadge"><?= $dashboard['unreadNotifications'] > 9 ? '9+' : $dashboard['unreadNotifications'] ?></span>
                     <?php endif; ?>
                 </a>
-                <!-- Mail -->
-                <button class="tb-icon-btn" title="Messages">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                    <span class="tb-badge blue">2</span>
-                </button>
-                <!-- Profile pill -->
-                <div class="profile-pill" id="profilePill">
-                    <div class="pp-avatar"><?= htmlspecialchars($dashboard['user']['initials']) ?></div>
-                    <div class="pp-info">
-                        <strong><?= htmlspecialchars($dashboard['user']['name']) ?></strong>
-                        <small><?= htmlspecialchars($dashboard['user']['title']) ?></small>
-                    </div>
-                    <span class="pp-chevron">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                    </span>
-                    <div class="pp-menu">
-                        <a href="{{ route('settings') }}" class="pp-menu-item">Settings</a>
-                        <button type="button" class="pp-menu-item danger pp-menu-logout">Log out</button>
-                    </div>
-                </div>
             </div>
         </header>
 

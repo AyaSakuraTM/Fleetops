@@ -537,7 +537,7 @@
         clearRouteDisplay();
         renderFleetMarkers();
         displayVehicleDetails(v);
-        loadTripRoute(v.active_trip_id || 101);
+        if (v.active_trip_id) loadTripRoute(v.active_trip_id);
 
         // Center map on marker
         map.panTo([v.latitude, v.longitude], { animate: true });

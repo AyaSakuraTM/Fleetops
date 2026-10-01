@@ -16,7 +16,7 @@ class DispatchController extends Controller
             'vehicle_id' => 'required|exists:vehicles,id',
             'driver_id' => 'required|exists:drivers,id',
             'destination' => 'required|string|max:255',
-            'origin' => 'nullable|string|max:255',
+            'origin' => 'required|string|max:255',
             'priority' => 'nullable|in:Normal,High,Urgent',
         ]);
 
@@ -49,11 +49,20 @@ class DispatchController extends Controller
         }
 
         $validated['dispatch_no'] = 'DSP-' . strtoupper(uniqid());
-        $validated['status'] = 'Scheduled';
+        $validated['status'] = 'Active';
 
         DB::transaction(function () use ($validated) {
-            Dispatch::create($validated);
-            DB::table('vehicles')->where('id', $validated['vehicle_id'])->update(['status' => 'Reserved', 'updated_at' => now()]);
+            $dispatch = Dispatch::create($validated);
+            TripRecord::create([
+                'dispatch_id' => $dispatch->id,
+                'vehicle_id' => $dispatch->vehicle_id,
+                'driver_id' => $dispatch->driver_id,
+                'origin' => $dispatch->origin,
+                'destination' => $dispatch->destination,
+                'departure_time' => now(),
+                'status' => 'Active',
+            ]);
+            DB::table('vehicles')->where('id', $dispatch->vehicle_id)->update(['status' => 'In Transit', 'updated_at' => now()]);
         });
 
         return back()->with('success', 'Direct Dispatch created successfully.');

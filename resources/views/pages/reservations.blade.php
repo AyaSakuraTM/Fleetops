@@ -613,7 +613,7 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
                 </div>
                 <div class="form-group">
                     <label for="dd-origin">Origin</label>
-                    <input class="form-control" type="text" id="dd-origin" name="origin" maxlength="255" placeholder="e.g. Main Office">
+                    <input class="form-control" type="text" id="dd-origin" name="origin" required maxlength="255" placeholder="e.g. Main Office">
                 </div>
                 <div class="form-group">
                     <label for="dd-destination">Destination</label>
