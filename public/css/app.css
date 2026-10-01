@@ -1087,6 +1087,74 @@ th { color: var(--muted); font-weight: 600; }
   .stats-grid .stat-card:last-child .stat-value { font-size: 1.25rem; }
 }
 
+@media (min-width: 961px) and (max-width: 1200px) {
+  .map-container-grid { grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr); gap: 14px; }
+  .leaflet-map-canvas { height: min(520px, 54vw); min-height: 400px; }
+}
+
+@media (max-width: 768px) {
+  .tracking-analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .analytics-card { min-width: 0; padding: 12px 10px; gap: 8px; border-radius: 14px; }
+  .analytics-card > div:last-child { min-width: 0; }
+  .analytics-label,
+  .analytics-sub { overflow-wrap: anywhere; }
+  .tracking-control-bar { gap: 8px; padding: 12px 14px; border-radius: 14px; }
+  .control-left { min-width: 0; gap: 8px; flex-wrap: wrap; }
+  .control-left h2 { min-width: 0; font-size: 1.12rem; line-height: 1.2; }
+  .live-pulse-badge { min-height: 36px; padding: 5px 9px; font-size: 0.74rem; }
+  .map-header-tools {
+    position: relative;
+    inset: auto;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 8px;
+  }
+  .map-filters { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; gap: 4px; padding: 4px; }
+  .filter-pill { min-height: 44px; flex: 1 1 auto; padding: 8px 9px; line-height: 1.15; }
+  .map-action-buttons { flex: 1 1 100%; justify-content: flex-end; gap: 6px; }
+  .map-btn { min-height: 44px; padding: 8px 11px; }
+  .leaflet-map-canvas { height: 360px; }
+  .vehicle-info-sidebar { gap: 10px; }
+  .panel-card { padding: 14px; border-radius: 16px; }
+  .card-empty-state { padding: 22px 8px; }
+  .divider { margin: 10px 0; }
+  .info-grid { gap: 8px; }
+  .info-label { font-size: 0.68rem; }
+  .eta-live-card { margin-top: 10px; padding: 12px; }
+  .eta-metrics-row { gap: 6px; }
+  .eta-metrics-row h4 { font-size: 0.9rem; }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+  .map-filters { flex: 1 1 auto; }
+  .map-action-buttons { flex: 0 0 auto; }
+}
+
+@media (max-width: 480px) {
+  .tracking-analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .analytics-card { padding: 10px 9px; gap: 7px; }
+  .analytics-icon { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 10px; font-size: 1rem; }
+  .analytics-label { font-size: 0.66rem; line-height: 1.2; letter-spacing: 0.03em; }
+  .analytics-value { font-size: 1.18rem; line-height: 1.1; }
+  .analytics-sub { font-size: 0.66rem; line-height: 1.2; }
+  .tracking-control-bar { padding: 10px 12px; }
+  .control-left h2 { font-size: 1.02rem; }
+  .live-pulse-badge { min-height: 34px; font-size: 0.7rem; }
+  .map-header-tools { padding: 6px; }
+  .filter-pill { padding: 7px 6px; font-size: 0.72rem; }
+  .map-btn { padding: 7px 9px; font-size: 0.74rem; }
+  .leaflet-map-canvas { height: clamp(320px, 88vw, 420px); }
+  .panel-card { padding: 12px; }
+  .panel-header-sub { gap: 8px; }
+  .panel-header-sub h3 { font-size: 0.92rem; }
+  .eta-metrics-row h4 { font-size: 0.82rem; }
+}
+
 /* ════════════════════════════════════════════════
    Driver Analytics Module – Global Overrides
    (Component styles live in the blade page itself)

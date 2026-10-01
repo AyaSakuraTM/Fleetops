@@ -466,10 +466,28 @@
         #mobileToggle {
           grid-column: 1;
           grid-row: 1;
-          width: 40px;
-          height: 40px;
+          justify-self: center;
+          align-self: center;
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+          width: 36px;
+          height: 36px;
+          padding: 0;
+          border: 1px solid var(--border);
           border-radius: 10px;
-          background: var(--sidebar);
+          background: var(--surface);
+          color: var(--sidebar);
+          box-shadow: var(--shadow);
+        }
+        #mobileToggle span {
+          width: 18px;
+          height: 2px;
+          margin: 0;
+          background: currentColor;
+          border-radius: 999px;
         }
         .search-bar {
           grid-column: 2;
@@ -494,8 +512,8 @@
       }
 
       @media (max-width: 480px) {
-        .topbar { grid-template-columns: 38px minmax(0, 1fr) auto !important; }
-        #mobileToggle { width: 38px; height: 38px; }
+        .topbar { grid-template-columns: 36px minmax(0, 1fr) auto !important; }
+        #mobileToggle { width: 34px; height: 34px; }
         .topbar-actions .tb-icon-btn { width: 34px; height: 34px; }
       }
     </style>

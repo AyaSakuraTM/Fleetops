@@ -124,8 +124,23 @@
                 </div>
             </div>
             <div class="quick-grid">
+                <?php
+                $quickActionRoutes = [
+                    'Add Vehicle' => 'vehicles',
+                    'Log Fuel' => 'fuel-logs',
+                    'Create Reservation' => 'reservations',
+                    'Dispatch Log' => 'reservations',
+                    'View Routes' => 'routes',
+                    'Check Drivers' => 'drivers',
+                    'Settings' => 'settings',
+                ];
+                ?>
                 <?php foreach ($dashboard['quickActions'] as $action): ?>
-                    <div class="quick-item"><?= htmlspecialchars($action) ?></div>
+                    <?php if (isset($quickActionRoutes[$action])): ?>
+                        <a class="quick-item" href="<?= route($quickActionRoutes[$action]) ?>" style="text-decoration:none;"><?= htmlspecialchars($action) ?></a>
+                    <?php else: ?>
+                        <div class="quick-item"><?= htmlspecialchars($action) ?></div>
+                    <?php endif; ?>
                 <?php endforeach; ?>
             </div>
         </article>
