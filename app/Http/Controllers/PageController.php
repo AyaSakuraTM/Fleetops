@@ -156,13 +156,33 @@ class PageController extends Controller
                 ->get();
             $dashboard['availableVehicles'] = DB::table('vehicles')
                 ->whereRaw('LOWER(status) = ?', ['active'])
+                ->whereNotExists(function ($query): void {
+                    $query->selectRaw('1')
+                        ->from('dispatches')
+                        ->whereColumn('dispatches.vehicle_id', 'vehicles.id')
+                        ->whereIn('dispatches.status', ['Scheduled', 'Active']);
+                })
                 ->orderBy('plate_number')
-                ->get();
-            $dashboard['availableDrivers'] = DB::table('drivers')
+                ->get(['id', 'vehicle_code', 'plate_number', 'type']);
+
+            $activeDrivers = DB::table('drivers')
                 ->join('users', 'drivers.user_id', '=', 'users.id')
                 ->whereRaw('LOWER(drivers.status) = ?', ['active'])
                 ->orderBy('users.name')
-                ->get(['drivers.id', 'users.name as driver_name']);
+                ->select([
+                    'drivers.id',
+                    'drivers.employee_id',
+                    DB::raw('COALESCE(drivers.name, users.name) as driver_name'),
+                ]);
+            $dashboard['reservationDrivers'] = (clone $activeDrivers)->get();
+            $dashboard['availableDrivers'] = (clone $activeDrivers)
+                ->whereNotExists(function ($query): void {
+                    $query->selectRaw('1')
+                        ->from('dispatches')
+                        ->whereColumn('dispatches.driver_id', 'drivers.id')
+                        ->whereIn('dispatches.status', ['Scheduled', 'Active']);
+                })
+                ->get();
         }
 
         return view('layout', compact('dashboard'));

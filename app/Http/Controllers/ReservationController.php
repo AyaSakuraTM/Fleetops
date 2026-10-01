@@ -4,24 +4,27 @@ namespace App\Http\Controllers;
 
 use App\Models\Reservation;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ReservationController extends Controller
 {
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'employee_id' => 'required|string|max:50',
+            'employee_id' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::exists('drivers', 'employee_id')->where(fn ($query) => $query->whereRaw('LOWER(status) = ?', ['active'])),
+            ],
             'destination' => 'required|string|max:255',
             'requested_date' => 'required|date|after_or_equal:today',
-            'passenger_count' => 'required|integer|min:1|max:60',
             'purpose' => 'required|string|max:255',
             'vehicle_type' => 'nullable|string|max:100',
             'remarks' => 'nullable|string',
             'requested_time' => 'nullable|date_format:H:i',
         ], [
             'requested_date.after_or_equal' => 'Requested date cannot be in the past.',
-            'passenger_count.min' => 'Passenger count must be at least 1.',
-            'passenger_count.max' => 'Passenger count cannot exceed 60.',
             'purpose.required' => 'Purpose is required for reservation creation.',
             'destination.required' => 'Destination is required for reservation creation.',
         ]);

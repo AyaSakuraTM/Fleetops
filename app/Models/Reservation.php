@@ -13,7 +13,7 @@ class Reservation extends Model
     protected $fillable = [
         'reservation_no', 'employee_id', 'destination', 'purpose', 
         'requested_date', 'requested_time', 'vehicle_type', 
-        'passenger_count', 'remarks', 'status', 'approved_by', 'approved_at',
+        'remarks', 'status', 'approved_by', 'approved_at',
     ];
 
     protected function casts(): array

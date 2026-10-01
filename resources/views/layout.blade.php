@@ -392,6 +392,112 @@
       .sidebar.collapsed .sb-collapse svg { transform: rotate(180deg); }
       .sidebar.collapsed .sb-user { justify-content: center; padding: 12px; }
       .sidebar.collapsed .sb-brand-logo-wrap { margin-right: 0 !important; }
+
+      @media (min-width: 961px) and (max-width: 1180px) {
+        .sidebar {
+          position: relative !important;
+          top: auto !important;
+          width: 100% !important;
+          min-width: 0 !important;
+          height: auto !important;
+        }
+      }
+
+      @media (max-width: 960px) {
+        .app-shell {
+          display: block !important;
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+        }
+        .app-shell.sidebar-open::before {
+          content: "";
+          position: fixed;
+          inset: 0;
+          z-index: 999;
+          background: rgba(10, 18, 35, 0.48);
+        }
+        .sidebar {
+          position: fixed !important;
+          top: 0 !important;
+          right: auto !important;
+          bottom: 0 !important;
+          left: 0 !important;
+          width: min(280px, calc(100vw - 40px)) !important;
+          min-width: 0 !important;
+          max-width: calc(100vw - 40px);
+          height: 100vh !important;
+          height: 100dvh !important;
+          padding: 0 !important;
+          transform: translateX(-105%) !important;
+          transition: transform 0.24s ease !important;
+          z-index: 1000 !important;
+        }
+        .app-shell.sidebar-open .sidebar { transform: translateX(0) !important; }
+        .sidebar.collapsed {
+          width: min(280px, calc(100vw - 40px)) !important;
+          min-width: 0 !important;
+          padding: 0 !important;
+        }
+        .sidebar.collapsed .sb-brand { justify-content: flex-start; padding: 16px 14px 14px; }
+        .sidebar.collapsed .nav-item { justify-content: flex-start !important; padding: 9px 12px !important; }
+        .sidebar.collapsed .nav-item span:not(.nav-badge),
+        .sidebar.collapsed .sb-collapse span,
+        .sidebar.collapsed .sb-user-info,
+        .sidebar.collapsed .sb-user-chevron { display: initial !important; }
+        .sidebar.collapsed .sb-user { justify-content: flex-start; padding: 14px 16px; }
+        .sidebar.collapsed .sb-collapse { justify-content: flex-start; padding: 12px 20px; }
+        .main-panel {
+          width: 100%;
+          max-width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+        }
+        .topbar {
+          display: grid !important;
+          grid-template-columns: 40px minmax(0, 1fr) auto !important;
+          align-items: center !important;
+          justify-content: initial !important;
+          column-gap: 8px !important;
+          row-gap: 8px !important;
+          flex-wrap: initial !important;
+          margin-bottom: 14px !important;
+        }
+        #mobileToggle {
+          grid-column: 1;
+          grid-row: 1;
+          width: 40px;
+          height: 40px;
+          border-radius: 10px;
+          background: var(--sidebar);
+        }
+        .search-bar {
+          grid-column: 2;
+          grid-row: 1;
+          width: 100% !important;
+          min-width: 0 !important;
+          padding: 9px 10px !important;
+          gap: 6px;
+        }
+        .search-bar input { min-width: 0; font-size: 0.8rem !important; }
+        .topbar-actions {
+          grid-column: 3;
+          grid-row: 1;
+          width: auto !important;
+          min-width: 0;
+          margin: 0 !important;
+          gap: 6px !important;
+          flex-wrap: nowrap !important;
+          justify-content: flex-end !important;
+        }
+        .topbar-actions .tb-icon-btn { width: 36px; height: 36px; }
+      }
+
+      @media (max-width: 480px) {
+        .topbar { grid-template-columns: 38px minmax(0, 1fr) auto !important; }
+        #mobileToggle { width: 38px; height: 38px; }
+        .topbar-actions .tb-icon-btn { width: 34px; height: 34px; }
+      }
     </style>
 </head>
 <body>
@@ -553,12 +659,12 @@
     <main class="main-panel">
         <header class="topbar">
             <!-- Mobile toggle -->
-            <button class="sidebar-toggle" type="button" aria-label="Open navigation" id="mobileToggle">
+            <button class="sidebar-toggle" type="button" aria-label="Open navigation" aria-controls="mainSidebar" aria-expanded="false" id="mobileToggle">
                 <span></span><span></span><span></span>
             </button>
 
             <!-- Search bar -->
-            <div class="search-bar" style="flex:1 1 320px; min-width:200px;">
+            <div class="search-bar" style="flex:1 1 320px; min-width:0;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input type="text" id="globalSearchInput" placeholder="Search fleet, routes, drivers..." style="border:0;outline:none;width:100%;background:transparent;font-size:0.9rem;" />
             </div>
@@ -618,12 +724,23 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Mobile toggle
     if (mobBtn && shell) {
-        mobBtn.addEventListener('click', function () { shell.classList.toggle('sidebar-open'); });
+      function closeMobileSidebar() {
+        shell.classList.remove('sidebar-open');
+        mobBtn.setAttribute('aria-expanded', 'false');
+      }
+
+      mobBtn.addEventListener('click', function () {
+        var isOpen = shell.classList.toggle('sidebar-open');
+        mobBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      });
         document.addEventListener('click', function (e) {
             if (!shell.classList.contains('sidebar-open')) return;
             if (sidebar && sidebar.contains(e.target)) return;
             if (mobBtn.contains(e.target)) return;
-            shell.classList.remove('sidebar-open');
+        closeMobileSidebar();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeMobileSidebar();
         });
     }
 

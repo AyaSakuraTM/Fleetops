@@ -17,6 +17,15 @@ $scheduledDis = $dashboard['scheduledDispatches']   ?? [];
 $activeDis    = $dashboard['activeDispatches']       ?? [];
 $vehicles     = $dashboard['availableVehicles']      ?? [];
 $drivers      = $dashboard['availableDrivers']       ?? [];
+$reservationDrivers = $dashboard['reservationDrivers'] ?? [];
+$selectedReservationDriver = null;
+$oldReservationEmployeeId = (string) old('employee_id', '');
+foreach ($reservationDrivers as $reservationDriver) {
+    if ((string) $reservationDriver->employee_id === $oldReservationEmployeeId) {
+        $selectedReservationDriver = $reservationDriver;
+        break;
+    }
+}
 ?>
 
 <style>
@@ -68,6 +77,9 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
 }
 
 .hub-section {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 16px;
@@ -83,6 +95,18 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
     border-bottom: 1px solid var(--border);
     gap: 10px;
     flex-wrap: wrap;
+}
+.reservation-date-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+.hub-section .table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
 }
 .hub-section-header .hs-title {
     font-size: 0.85rem;
@@ -202,6 +226,36 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
     box-sizing: border-box;
 }
 .form-control:focus { outline: none; border-color: var(--accent); }
+.driver-combobox { position: relative; }
+.driver-suggestions {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    left: 0;
+    z-index: 20;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+}
+.driver-suggestions[hidden] { display: none; }
+.driver-suggestion {
+    display: block;
+    width: 100%;
+    padding: 9px 11px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+.driver-suggestion:hover, .driver-suggestion[aria-selected="true"] { background: var(--accent-light); }
+.driver-suggestion-empty { padding: 9px 11px; color: var(--muted); font-size: .84rem; }
 .btn-primary {
     padding: 10px 20px; border-radius: 10px; border: none;
     background: linear-gradient(135deg,#4361ee,#3a0ca3);
@@ -225,6 +279,14 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
     box-shadow: 0 6px 14px rgba(229,72,77,0.3);
 }
 .btn-danger:hover { opacity: 0.9; transform: translateY(-1px); }
+
+@media (max-width: 480px) {
+    .hub-section-header { padding: 12px 14px; }
+    .reservation-date-grid { grid-template-columns: minmax(0, 1fr); }
+    .modal-body { padding: 16px; }
+    .modal-footer { flex-wrap: wrap; }
+    .modal-footer > button { flex: 1 1 120px; }
+}
 
 [data-theme="dark"] .form-control { background: #1a2840 !important; border-color: #1e2e45 !important; color: #e4eaf5 !important; }
 [data-theme="dark"] .hub-kpi-card { background: #162032 !important; border-color: #1e2e45 !important; }
@@ -304,14 +366,13 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
                         <th>Destination</th>
                         <th>Date</th>
                         <th>Vehicle Type</th>
-                        <th>Pax</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (count($pendingRes) === 0): ?>
-                        <tr class="empty-row"><td colspan="8">No pending reservations.</td></tr>
+                        <tr class="empty-row"><td colspan="7">No pending reservations.</td></tr>
                     <?php else: ?>
                         <?php foreach ($pendingRes as $r): ?>
                             <tr>
@@ -320,7 +381,6 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
                                 <td><?= htmlspecialchars($r->destination ?? '—') ?></td>
                                 <td><?= $r->requested_date ? date('M d, Y', strtotime($r->requested_date)) : '—' ?></td>
                                 <td><?= htmlspecialchars($r->vehicle_type ?? 'Any') ?></td>
-                                <td><?= (int)($r->passenger_count ?? 1) ?></td>
                                 <td><span class="sp sp-pending">Pending</span></td>
                                 <td>
                                     <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -523,8 +583,19 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
             <?= csrf_field() ?>
             <div class="modal-body">
                 <div class="form-group">
-                    <label for="res-employee-id">Employee ID</label>
-                    <input class="form-control" type="text" id="res-employee-id" name="employee_id" value="<?= htmlspecialchars(old('employee_id', ''), ENT_QUOTES, 'UTF-8') ?>" required maxlength="50" placeholder="e.g. EMP-001">
+                    <label for="res-driver-search">Driver</label>
+                    <div class="driver-combobox">
+                        <input class="form-control" type="text" id="res-driver-search" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="res-driver-suggestions" autocomplete="off" value="<?= htmlspecialchars($selectedReservationDriver ? $selectedReservationDriver->driver_name . ' — ' . $selectedReservationDriver->employee_id : '', ENT_QUOTES, 'UTF-8') ?>" required placeholder="Search or browse drivers">
+                        <input type="hidden" id="res-employee-id" name="employee_id" value="<?= htmlspecialchars($selectedReservationDriver->employee_id ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                        <div class="driver-suggestions" id="res-driver-suggestions" role="listbox" hidden>
+                            <?php foreach ($reservationDrivers as $reservationDriver): ?>
+                                <button class="driver-suggestion" id="res-driver-option-<?= (int)$reservationDriver->id ?>" type="button" role="option" aria-selected="false" data-driver-name="<?= htmlspecialchars($reservationDriver->driver_name, ENT_QUOTES, 'UTF-8') ?>" data-employee-id="<?= htmlspecialchars($reservationDriver->employee_id, ENT_QUOTES, 'UTF-8') ?>">
+                                    <?= htmlspecialchars($reservationDriver->driver_name . ' — ' . $reservationDriver->employee_id, ENT_QUOTES, 'UTF-8') ?>
+                                </button>
+                            <?php endforeach; ?>
+                            <div class="driver-suggestion-empty" role="status" hidden>No matching drivers.</div>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="res-destination">Destination</label>
@@ -534,7 +605,7 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
                     <label for="res-purpose">Purpose</label>
                     <input class="form-control" type="text" id="res-purpose" name="purpose" value="<?= htmlspecialchars(old('purpose', ''), ENT_QUOTES, 'UTF-8') ?>" maxlength="255" placeholder="e.g. Site inspection" required>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="reservation-date-grid">
                     <div class="form-group">
                         <label for="res-requested-date">Requested Date</label>
                         <input class="form-control" type="date" id="res-requested-date" name="requested_date" value="<?= htmlspecialchars(old('requested_date', ''), ENT_QUOTES, 'UTF-8') ?>" min="<?= now()->toDateString() ?>" required>
@@ -544,23 +615,17 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
                         <input class="form-control" type="time" id="res-requested-time" name="requested_time" value="<?= htmlspecialchars(old('requested_time', ''), ENT_QUOTES, 'UTF-8') ?>">
                     </div>
                 </div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                    <div class="form-group">
-                        <label for="res-vehicle-type">Vehicle Preference</label>
-                        <select class="form-control" id="res-vehicle-type" name="vehicle_type">
-                            <option value="Any / No Preference" <?= old('vehicle_type', 'Any / No Preference') === 'Any / No Preference' ? 'selected' : '' ?>>Any / No Preference</option>
-                            <?php foreach ($vehicles as $v): ?>
-                                <?php $vehiclePreference = ($v->type ?? 'Vehicle') . ' (' . $v->plate_number . ')'; ?>
-                                <option value="<?= htmlspecialchars($vehiclePreference, ENT_QUOTES, 'UTF-8') ?>" <?= old('vehicle_type') === $vehiclePreference ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($v->plate_number . ' - ' . ($v->type ?? 'N/A')) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="res-passenger-count">Passengers</label>
-                        <input class="form-control" type="number" id="res-passenger-count" name="passenger_count" value="<?= htmlspecialchars(old('passenger_count', '1'), ENT_QUOTES, 'UTF-8') ?>" min="1" max="60" required>
-                    </div>
+                <div class="form-group">
+                    <label for="res-vehicle-type">Vehicle Preference</label>
+                    <select class="form-control" id="res-vehicle-type" name="vehicle_type">
+                        <option value="Any / No Preference" <?= old('vehicle_type', 'Any / No Preference') === 'Any / No Preference' ? 'selected' : '' ?>>Any / No Preference</option>
+                        <?php foreach ($vehicles as $v): ?>
+                            <?php $vehiclePreference = ($v->type ?? 'Vehicle') . ' (' . $v->plate_number . ')'; ?>
+                            <option value="<?= htmlspecialchars($vehiclePreference, ENT_QUOTES, 'UTF-8') ?>" <?= old('vehicle_type') === $vehiclePreference ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($v->plate_number . ' - ' . ($v->type ?? 'N/A')) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="res-remarks">Remarks</label>
@@ -592,7 +657,7 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
                     <select class="form-control" id="dd-vehicle" name="vehicle_id" required>
                         <option value="">— Select Vehicle —</option>
                         <?php foreach ($vehicles as $v): ?>
-                            <option value="<?= (int)$v->id ?>"><?= htmlspecialchars($v->plate_number . ' (' . ($v->type ?? 'N/A') . ')') ?></option>
+                            <option value="<?= (int)$v->id ?>"><?= htmlspecialchars($v->vehicle_code . ' — ' . $v->plate_number . ' (' . ($v->type ?? 'N/A') . ')') ?></option>
                         <?php endforeach; ?>
                         <?php if (count($vehicles) === 0): ?>
                             <option disabled>No available vehicles</option>
@@ -604,7 +669,7 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
                     <select class="form-control" id="dd-driver" name="driver_id" required>
                         <option value="">— Select Driver —</option>
                         <?php foreach ($drivers as $dr): ?>
-                            <option value="<?= (int)$dr->id ?>"><?= htmlspecialchars($dr->driver_name) ?></option>
+                            <option value="<?= (int)$dr->id ?>"><?= htmlspecialchars($dr->driver_name . ' — ' . $dr->employee_id) ?></option>
                         <?php endforeach; ?>
                         <?php if (count($drivers) === 0): ?>
                             <option disabled>No available drivers</option>
@@ -658,7 +723,7 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
                     <select class="form-control" id="cv-vehicle" name="vehicle_id" required>
                         <option value="">— Select Vehicle —</option>
                         <?php foreach ($vehicles as $v): ?>
-                            <option value="<?= (int)$v->id ?>"><?= htmlspecialchars($v->plate_number . ' (' . ($v->type ?? 'N/A') . ')') ?></option>
+                            <option value="<?= (int)$v->id ?>"><?= htmlspecialchars($v->vehicle_code . ' — ' . $v->plate_number . ' (' . ($v->type ?? 'N/A') . ')') ?></option>
                         <?php endforeach; ?>
                         <?php if (count($vehicles) === 0): ?>
                             <option disabled>No available vehicles</option>
@@ -670,7 +735,7 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
                     <select class="form-control" id="cv-driver" name="driver_id" required>
                         <option value="">— Select Driver —</option>
                         <?php foreach ($drivers as $dr): ?>
-                            <option value="<?= (int)$dr->id ?>"><?= htmlspecialchars($dr->driver_name) ?></option>
+                            <option value="<?= (int)$dr->id ?>"><?= htmlspecialchars($dr->driver_name . ' — ' . $dr->employee_id) ?></option>
                         <?php endforeach; ?>
                         <?php if (count($drivers) === 0): ?>
                             <option disabled>No available drivers</option>
@@ -692,6 +757,93 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
 <script>
     // Base URL for convert route (without the reservation ID)
     var convertBaseUrl = <?= json_encode(url('/dispatches/convert')) ?>;
+    var driverSearchInput = document.getElementById('res-driver-search');
+    var driverEmployeeIdInput = document.getElementById('res-employee-id');
+    var driverSuggestions = document.getElementById('res-driver-suggestions');
+    var driverSuggestionOptions = driverSuggestions ? Array.from(driverSuggestions.querySelectorAll('.driver-suggestion')) : [];
+    var driverSuggestionsEmpty = driverSuggestions ? driverSuggestions.querySelector('.driver-suggestion-empty') : null;
+    var activeDriverSuggestion = -1;
+
+    function renderDriverSuggestions(query) {
+        if (!driverSuggestions) return;
+
+        var search = (query || '').trim().toLocaleLowerCase();
+        var matchCount = 0;
+        driverSuggestionOptions.forEach(function (option) {
+            var matches = !search || option.dataset.driverName.toLocaleLowerCase().includes(search) ||
+                option.dataset.employeeId.toLocaleLowerCase().includes(search);
+            option.hidden = !matches;
+            option.setAttribute('aria-selected', 'false');
+            if (matches) matchCount++;
+        });
+
+        if (driverSuggestionsEmpty) driverSuggestionsEmpty.hidden = matchCount > 0;
+        driverSuggestions.hidden = false;
+        driverSearchInput.setAttribute('aria-expanded', 'true');
+        driverSearchInput.removeAttribute('aria-activedescendant');
+        activeDriverSuggestion = -1;
+    }
+
+    function hideDriverSuggestions() {
+        if (!driverSuggestions) return;
+        driverSuggestions.hidden = true;
+        driverSearchInput.setAttribute('aria-expanded', 'false');
+        driverSearchInput.removeAttribute('aria-activedescendant');
+        activeDriverSuggestion = -1;
+    }
+
+    function selectDriverSuggestion(option) {
+        driverSearchInput.value = option.dataset.driverName + ' — ' + option.dataset.employeeId;
+        driverEmployeeIdInput.value = option.dataset.employeeId;
+        driverSearchInput.setCustomValidity('');
+        hideDriverSuggestions();
+    }
+
+    if (driverSearchInput && driverEmployeeIdInput && driverSuggestions) {
+        driverSearchInput.addEventListener('focus', function () { renderDriverSuggestions(''); });
+        driverSearchInput.addEventListener('click', function () { renderDriverSuggestions(''); });
+        driverSearchInput.addEventListener('input', function () {
+            driverEmployeeIdInput.value = '';
+            driverSearchInput.setCustomValidity('');
+            renderDriverSuggestions(driverSearchInput.value);
+        });
+        driverSearchInput.addEventListener('keydown', function (event) {
+            var visibleOptions = driverSuggestionOptions.filter(function (option) { return !option.hidden; });
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                if (driverSuggestions.hidden) renderDriverSuggestions(driverSearchInput.value);
+                visibleOptions = driverSuggestionOptions.filter(function (option) { return !option.hidden; });
+                if (visibleOptions.length === 0) return;
+                var direction = event.key === 'ArrowDown' ? 1 : -1;
+                activeDriverSuggestion = activeDriverSuggestion < 0
+                    ? (direction === 1 ? 0 : visibleOptions.length - 1)
+                    : (activeDriverSuggestion + direction + visibleOptions.length) % visibleOptions.length;
+                visibleOptions.forEach(function (option, index) {
+                    option.setAttribute('aria-selected', index === activeDriverSuggestion ? 'true' : 'false');
+                });
+                driverSearchInput.setAttribute('aria-activedescendant', visibleOptions[activeDriverSuggestion].id);
+                event.preventDefault();
+            } else if (event.key === 'Enter' && !driverSuggestions.hidden && activeDriverSuggestion >= 0) {
+                event.preventDefault();
+                selectDriverSuggestion(visibleOptions[activeDriverSuggestion]);
+            } else if (event.key === 'Escape') {
+                hideDriverSuggestions();
+            }
+        });
+        driverSuggestions.addEventListener('click', function (event) {
+            var option = event.target.closest('.driver-suggestion');
+            if (option) selectDriverSuggestion(option);
+        });
+        document.addEventListener('click', function (event) {
+            if (!event.target.closest('.driver-combobox')) hideDriverSuggestions();
+        });
+        driverSearchInput.closest('form').addEventListener('submit', function (event) {
+            if (!driverEmployeeIdInput.value) {
+                event.preventDefault();
+                driverSearchInput.setCustomValidity('Select a driver from the suggestions.');
+                driverSearchInput.reportValidity();
+            }
+        });
+    }
 
     function hubModal(id) {
         document.getElementById(id).style.display = 'flex';

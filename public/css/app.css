@@ -882,6 +882,211 @@ th { color: var(--muted); font-weight: 600; }
   .control-right { flex-direction: column; }
 }
 
+/* Keep grid and table contents inside their available layout tracks. */
+.app-shell,
+.main-panel,
+.content-grid,
+.content-column,
+.panel,
+.table-wrapper,
+.map-container-grid,
+.map-container-grid > *,
+.tracking-module-wrapper {
+  min-width: 0;
+  max-width: 100%;
+}
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.content-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); }
+.quick-item { min-width: 0; overflow-wrap: anywhere; }
+.list-item > :nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
+
+@media (max-width: 768px) {
+  .main-panel { width: 100%; }
+  .content-grid { grid-template-columns: minmax(0, 1fr); }
+  .content-column,
+  .panel,
+  .stats-grid,
+  .availability-layout,
+  .chart-card,
+  .legend-table,
+  .quick-grid,
+  .quick-item {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .table-wrapper { max-width: 100%; }
+  .tracking-analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .map-container-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .map-header-tools {
+    position: relative;
+    inset: auto;
+    z-index: 2;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+  }
+  .map-filters,
+  .map-action-buttons { max-width: 100%; flex-wrap: wrap; }
+  .map-filters { justify-content: center; }
+  .map-btn { flex: 1 1 auto; }
+  .leaflet-map-canvas { width: 100%; max-width: 100%; height: 360px; }
+  .map-route-legend {
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    max-width: calc(100% - 16px);
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 8px;
+  }
+  .legend-item { min-width: 0; }
+  .map-view-card,
+  .vehicle-info-sidebar,
+  .panel-card,
+  .dispatch-info { min-width: 0; max-width: 100%; }
+  .dispatch-item { min-width: 0; }
+  .dispatch-info h4,
+  .dispatch-info p,
+  .info-val,
+  .info-val-sm,
+  .info-val-highlight { overflow-wrap: anywhere; }
+  .eta-metrics-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .eta-metrics-row h4 { overflow-wrap: anywhere; }
+  .drawer-panel {
+    right: 0;
+    width: min(360px, 100vw);
+    max-width: 100vw;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+  .drawer-panel.open { right: 0; transform: translateX(0); }
+}
+
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .stat-card { width: 100%; max-width: 100%; }
+  .hero-card { padding: 16px; border-radius: 18px; }
+  .hero-card h1,
+  .hero-copy,
+  .hero-badge,
+  .panel-header h3 { overflow-wrap: anywhere; }
+  .hero-badge { align-self: flex-start; max-width: 100%; white-space: normal; }
+  .panel { padding: 14px 12px 16px; border-radius: 16px; }
+  .panel-header { align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+  .panel-header > :first-child { min-width: 0; }
+  .availability-layout { grid-template-columns: minmax(0, 1fr); }
+  .chart-card { flex-direction: column; align-items: center; gap: 12px; }
+  .pie-chart {
+    width: min(176px, 52vw);
+    height: auto;
+    aspect-ratio: 1;
+    flex: 0 0 min(176px, 52vw);
+  }
+  .pie-chart::after { inset: 25%; }
+  .chart-caption {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    font-size: 0.8rem;
+  }
+  .legend-table { padding: 8px 10px; }
+  .quick-grid { grid-template-columns: minmax(0, 1fr); }
+  .quick-item { padding: 12px; border-radius: 10px; }
+  .tracking-analytics-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .analytics-card { min-width: 0; }
+  .tracking-control-bar { padding: 12px; }
+  .control-left { min-width: 0; flex-wrap: wrap; gap: 8px; }
+  .control-left h2 { font-size: 1.1rem; overflow-wrap: anywhere; }
+  .live-pulse-badge { max-width: 100%; white-space: normal; }
+  .control-right { flex-direction: row; flex-wrap: wrap; }
+  .leaflet-map-canvas { height: 300px; }
+  .map-filters { justify-content: flex-start; }
+  .filter-pill { padding: 6px 8px; font-size: 0.74rem; }
+  .map-btn { padding: 7px 9px; font-size: 0.74rem; }
+  .map-route-legend { font-size: 0.68rem; }
+  .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .eta-live-card { padding: 12px; }
+  .eta-header { flex-wrap: wrap; gap: 6px; }
+  .eta-metrics-row h4 { font-size: 0.9rem; }
+  .gps-status-header { flex-wrap: wrap; gap: 8px; }
+  .modal-backdrop { padding: 12px; }
+  .modal-card { max-width: 100%; max-height: calc(100dvh - 24px); }
+}
+
+@media (max-width: 380px) {
+  .leaflet-map-canvas { height: 270px; }
+  .info-grid { grid-template-columns: minmax(0, 1fr); }
+  .info-item.full { grid-column: auto; }
+  .eta-metrics-row { grid-template-columns: minmax(0, 1fr); }
+  .map-route-legend { gap: 4px 8px; }
+}
+
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .stat-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 13px 14px 12px;
+    border-radius: 16px;
+  }
+  .stat-heading {
+    margin-bottom: 5px;
+    font-size: 0.82rem;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+  .stat-value {
+    margin-bottom: 5px;
+    font-size: 1.45rem;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+  }
+  .stat-meta {
+    font-size: 0.76rem;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+  .stats-grid .stat-card:last-child {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 12px;
+  }
+  .stats-grid .stat-card:last-child .stat-heading,
+  .stats-grid .stat-card:last-child .stat-meta { grid-column: 1; }
+  .stats-grid .stat-card:last-child .stat-heading { grid-row: 1; }
+  .stats-grid .stat-card:last-child .stat-meta { grid-row: 2; }
+  .stats-grid .stat-card:last-child .stat-value {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    margin: 0;
+    text-align: right;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid { gap: 8px; margin-bottom: 10px; }
+  .stat-card { padding: 11px 12px 10px; border-radius: 14px; }
+  .stat-heading { margin-bottom: 4px; font-size: 0.78rem; }
+  .stat-value { margin-bottom: 4px; font-size: 1.32rem; }
+  .stat-meta { font-size: 0.72rem; }
+  .stats-grid .stat-card:last-child { column-gap: 8px; }
+  .stats-grid .stat-card:last-child .stat-value { font-size: 1.25rem; }
+}
+
 /* ════════════════════════════════════════════════
    Driver Analytics Module – Global Overrides
    (Component styles live in the blade page itself)
