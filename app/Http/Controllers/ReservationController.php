@@ -10,17 +10,18 @@ class ReservationController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'employee_id' => 'required|string|max:255',
+            'employee_id' => 'required|string|max:50',
             'destination' => 'required|string|max:255',
             'requested_date' => 'required|date|after_or_equal:today',
-            'passenger_count' => 'required|integer|min:1',
+            'passenger_count' => 'required|integer|min:1|max:60',
             'purpose' => 'required|string|max:255',
-            'vehicle_type' => 'nullable|string|max:255',
+            'vehicle_type' => 'nullable|string|max:100',
             'remarks' => 'nullable|string',
-            'requested_time' => 'nullable|string',
+            'requested_time' => 'nullable|date_format:H:i',
         ], [
             'requested_date.after_or_equal' => 'Requested date cannot be in the past.',
             'passenger_count.min' => 'Passenger count must be at least 1.',
+            'passenger_count.max' => 'Passenger count cannot exceed 60.',
             'purpose.required' => 'Purpose is required for reservation creation.',
             'destination.required' => 'Destination is required for reservation creation.',
         ]);
@@ -30,7 +31,7 @@ class ReservationController extends Controller
 
         Reservation::create($validated);
 
-        return back()->with('success', 'Reservation created successfully.');
+        return back()->with('success', 'Reservation submitted and sent for approval.');
     }
 
     public function approve(Request $request, Reservation $reservation)

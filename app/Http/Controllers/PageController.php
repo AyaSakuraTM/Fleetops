@@ -126,6 +126,45 @@ class PageController extends Controller
                 : [],
         ];
 
+        if ($page === 'reservations') {
+            $dashboard['pendingReservations'] = DB::table('reservations')
+                ->whereRaw('LOWER(status) = ?', ['pending'])
+                ->orderByDesc('created_at')
+                ->get();
+            $dashboard['approvedReservations'] = DB::table('reservations')
+                ->whereRaw('LOWER(status) = ?', ['approved'])
+                ->orderByDesc('approved_at')
+                ->get();
+            $dashboard['rejectedReservations'] = DB::table('reservations')
+                ->whereRaw('LOWER(status) = ?', ['rejected'])
+                ->orderByDesc('updated_at')
+                ->get();
+
+            $dispatches = DB::table('dispatches')
+                ->leftJoin('vehicles', 'dispatches.vehicle_id', '=', 'vehicles.id')
+                ->leftJoin('drivers', 'dispatches.driver_id', '=', 'drivers.id')
+                ->leftJoin('users', 'drivers.user_id', '=', 'users.id')
+                ->select('dispatches.*', 'vehicles.plate_number', 'users.name as driver_name');
+
+            $dashboard['scheduledDispatches'] = (clone $dispatches)
+                ->whereRaw('LOWER(dispatches.status) = ?', ['scheduled'])
+                ->orderByDesc('dispatches.created_at')
+                ->get();
+            $dashboard['activeDispatches'] = (clone $dispatches)
+                ->whereRaw('LOWER(dispatches.status) = ?', ['active'])
+                ->orderByDesc('dispatches.updated_at')
+                ->get();
+            $dashboard['availableVehicles'] = DB::table('vehicles')
+                ->whereRaw('LOWER(status) = ?', ['active'])
+                ->orderBy('plate_number')
+                ->get();
+            $dashboard['availableDrivers'] = DB::table('drivers')
+                ->join('users', 'drivers.user_id', '=', 'users.id')
+                ->whereRaw('LOWER(drivers.status) = ?', ['active'])
+                ->orderBy('users.name')
+                ->get(['drivers.id', 'users.name as driver_name']);
+        }
+
         return view('layout', compact('dashboard'));
     }
 
