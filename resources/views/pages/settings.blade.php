@@ -23,7 +23,7 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
     <?php endif; ?>
 
     <div class="settings-grid">
-        <section class="settings-card" aria-labelledby="profile-heading">
+        <section class="settings-card" aria-labelledby="profile-heading" hidden>
             <div class="settings-card-heading">
                 <span class="settings-icon" aria-hidden="true">👤</span>
                 <div><h4 id="profile-heading">Profile</h4><p>Update the name and email shown on your account.</p></div>
@@ -44,7 +44,7 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
             </form>
         </section>
 
-        <section class="settings-card" aria-labelledby="security-heading">
+        <section class="settings-card" aria-labelledby="security-heading" hidden>
             <div class="settings-card-heading">
                 <span class="settings-icon" aria-hidden="true">🔒</span>
                 <div><h4 id="security-heading">Security</h4><p>Choose a new password for your account.</p></div>

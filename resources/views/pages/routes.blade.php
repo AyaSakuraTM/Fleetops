@@ -129,13 +129,13 @@
             </div>
         </div>
         <div class="control-right">
-            <button class="btn-secondary" onclick="toggleDriverMobileModal()">
+            <button class="btn-secondary" onclick="toggleDriverMobileModal()" hidden>
                 📱 Driver Mobile GPS Tracker
             </button>
-            <button class="btn-secondary" onclick="toggleIntegrationModal()">
+            <button class="btn-secondary" onclick="toggleIntegrationModal()" hidden>
                 🔗 System Integration
             </button>
-            <button class="btn-primary" onclick="toggleNotificationsDrawer()">
+            <button class="btn-primary" onclick="toggleNotificationsDrawer()" hidden>
                 🔔 Live Alerts <span class="badge-count" id="notif-count">2</span>
             </button>
         </div>
