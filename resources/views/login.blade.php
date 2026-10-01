@@ -115,7 +115,6 @@
                 </div>
                 <button type="submit" class="login-button">Sign in</button>
             </form>
-            <div class="login-footer">Secure access to your Archon Nell workspace</div>
         </section>
     </main>
     <script>
