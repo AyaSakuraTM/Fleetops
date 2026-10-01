@@ -41,7 +41,6 @@
       [data-theme="dark"] .main-panel { background: #0d1421; }
       [data-theme="dark"] .stat-card,
       [data-theme="dark"] .panel,
-      [data-theme="dark"] .hero-card,
       [data-theme="dark"] .search-bar,
       [data-theme="dark"] .profile-pill,
       [data-theme="dark"] .modal-card,
@@ -73,11 +72,7 @@
       [data-theme="dark"] .sb-menu-item:hover { background: rgba(67,97,238,0.15) !important; }
       [data-theme="dark"] .search-bar input { color: #e4eaf5 !important; background: transparent !important; }
       [data-theme="dark"] .search-bar svg { color: #7a8faa !important; }
-      [data-theme="dark"] .hero-card { background: linear-gradient(90deg, #162032 0%, #1a2840 100%) !important; }
-      [data-theme="dark"] .hero-card h1 { color: #e4eaf5 !important; }
-      [data-theme="dark"] .hero-copy { color: #7a8faa !important; }
       [data-theme="dark"] .eyebrow { color: #4cc9f0 !important; }
-      [data-theme="dark"] .hero-badge { background: rgba(67,97,238,0.2) !important; color: #7ba8ff !important; }
       [data-theme="dark"] .stat-heading { color: #7a8faa !important; }
       [data-theme="dark"] .stat-value { color: #e4eaf5 !important; }
       [data-theme="dark"] .negative-card { background: linear-gradient(135deg, #162032 0%, #1d2516 100%) !important; }
@@ -367,7 +362,6 @@
       /* Other theme overrides */
       body { background: #f4f6fb !important; }
       .eyebrow { color: #4361ee !important; }
-      .hero-badge { background: rgba(67,97,238,0.12) !important; color: #4361ee !important; }
       .pill-button { background: rgba(67,97,238,0.12) !important; color: #4361ee !important; }
       .positive { color: #22c55e !important; }
       .list-icon { background: rgba(67,97,238,0.12) !important; color: #4361ee !important; }
@@ -703,14 +697,7 @@
             </div>
         </header>
 
-        <section class="hero-card">
-            <div>
-                <p class="eyebrow">Fleet operations overview</p>
-                <h1><?= htmlspecialchars($dashboard['title']) ?></h1>
-                <p class="hero-copy">You have 12 dispatches ready, 198 vehicles active, and 3 critical alerts to review.</p>
-            </div>
-            <div class="hero-badge">Live • 24/7 Operations</div>
-        </section>
+        <h1 class="page-title"><?= htmlspecialchars($dashboard['title']) ?></h1>
 
         @include('pages.'.$dashboard['page'], ['dashboard' => $dashboard])
     </main>
