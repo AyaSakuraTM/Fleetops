@@ -35,116 +35,11 @@
                         <th>PLATE NO.</th>
                         <th>TYPE</th>
                         <th>BRAND & MODEL</th>
-                        <th>CAPACITY</th>
-                        <th>ODOMETER</th>
                         <th>STATUS</th>
                         <th class="text-right">ACTIONS</th>
                     </tr>
                 </thead>
-                <tbody id="vehicle-table-body">
-                    <!-- Row 1 -->
-                    <tr data-status="available" data-id="VHC-001">
-                        <td><strong class="vehicle-id-text">VHC-001</strong></td>
-                        <td><span class="plate-no-link">ABC-1234</span></td>
-                        <td>Truck</td>
-                        <td>Isuzu Giga (2022)</td>
-                        <td>10,000 kg</td>
-                        <td>45,320 km</td>
-                        <td><span class="status-pill-badge badge-available">Available</span></td>
-                        <td class="text-right action-links">
-                            <a href="<?= htmlspecialchars($dashboard['basePath'] . '/routes?vehicle=VHC-001') ?>" class="action-btn map-link"><span class="icon-red">📍</span> Map</a>
-                            <button class="action-btn view-link" onclick="viewVehicleDetails('VHC-001', 'ABC-1234', 'Truck', 'Isuzu Giga (2022)', '10,000 kg', '45,320 km', 'Available')">View</button>
-                            <button class="action-btn edit-link" onclick="editVehicle('VHC-001', 'ABC-1234', 'Truck', 'Isuzu Giga (2022)', '10,000 kg', '45,320 km', 'Available')">Edit</button>
-                            <button class="action-btn service-link" onclick="openLogServiceModal('VHC-001', 'Isuzu Giga (2022)')"><span class="icon-wrench">🔧</span> Log Service</button>
-                            <button class="action-btn delete-link" onclick="deleteVehicleRow(this, 'VHC-001')">Delete</button>
-                        </td>
-                    </tr>
-                    <!-- Row 2 -->
-                    <tr data-status="in transit" data-id="VHC-002">
-                        <td><strong class="vehicle-id-text">VHC-002</strong></td>
-                        <td><span class="plate-no-link">DEF-5678</span></td>
-                        <td>Van</td>
-                        <td>Toyota Hiace (2021)</td>
-                        <td>2,000 kg</td>
-                        <td>78,100 km</td>
-                        <td><span class="status-pill-badge badge-in-transit">In Transit</span></td>
-                        <td class="text-right action-links">
-                            <a href="<?= htmlspecialchars($dashboard['basePath'] . '/routes?vehicle=VHC-002') ?>" class="action-btn map-link"><span class="icon-red">📍</span> Map</a>
-                            <button class="action-btn view-link" onclick="viewVehicleDetails('VHC-002', 'DEF-5678', 'Van', 'Toyota Hiace (2021)', '2,000 kg', '78,100 km', 'In Transit')">View</button>
-                            <button class="action-btn edit-link" onclick="editVehicle('VHC-002', 'DEF-5678', 'Van', 'Toyota Hiace (2021)', '2,000 kg', '78,100 km', 'In Transit')">Edit</button>
-                            <button class="action-btn service-link" onclick="openLogServiceModal('VHC-002', 'Toyota Hiace (2021)')"><span class="icon-wrench">🔧</span> Log Service</button>
-                            <button class="action-btn delete-link" onclick="deleteVehicleRow(this, 'VHC-002')">Delete</button>
-                        </td>
-                    </tr>
-                    <!-- Row 3 -->
-                    <tr data-status="available" data-id="VHC-003">
-                        <td><strong class="vehicle-id-text">VHC-003</strong></td>
-                        <td><span class="plate-no-link">GHI-9012</span></td>
-                        <td>Motorcycle</td>
-                        <td>Honda CRF300L (2023)</td>
-                        <td>100 kg</td>
-                        <td>12,400 km</td>
-                        <td><span class="status-pill-badge badge-available">Available</span></td>
-                        <td class="text-right action-links">
-                            <a href="<?= htmlspecialchars($dashboard['basePath'] . '/routes?vehicle=VHC-003') ?>" class="action-btn map-link"><span class="icon-red">📍</span> Map</a>
-                            <button class="action-btn view-link" onclick="viewVehicleDetails('VHC-003', 'GHI-9012', 'Motorcycle', 'Honda CRF300L (2023)', '100 kg', '12,400 km', 'Available')">View</button>
-                            <button class="action-btn edit-link" onclick="editVehicle('VHC-003', 'GHI-9012', 'Motorcycle', 'Honda CRF300L (2023)', '100 kg', '12,400 km', 'Available')">Edit</button>
-                            <button class="action-btn service-link" onclick="openLogServiceModal('VHC-003', 'Honda CRF300L (2023)')"><span class="icon-wrench">🔧</span> Log Service</button>
-                            <button class="action-btn delete-link" onclick="deleteVehicleRow(this, 'VHC-003')">Delete</button>
-                        </td>
-                    </tr>
-                    <!-- Row 4 -->
-                    <tr data-status="maintenance" data-id="VHC-004">
-                        <td><strong class="vehicle-id-text">VHC-004</strong></td>
-                        <td><span class="plate-no-link">JKL-3456</span></td>
-                        <td>Truck</td>
-                        <td>Mitsubishi Canter (2020)</td>
-                        <td>5,000 kg</td>
-                        <td>120,800 km</td>
-                        <td><span class="status-pill-badge badge-maintenance">Maintenance</span></td>
-                        <td class="text-right action-links">
-                            <a href="<?= htmlspecialchars($dashboard['basePath'] . '/routes?vehicle=VHC-004') ?>" class="action-btn map-link"><span class="icon-red">📍</span> Map</a>
-                            <button class="action-btn view-link" onclick="viewVehicleDetails('VHC-004', 'JKL-3456', 'Truck', 'Mitsubishi Canter (2020)', '5,000 kg', '120,800 km', 'Maintenance')">View</button>
-                            <button class="action-btn edit-link" onclick="editVehicle('VHC-004', 'JKL-3456', 'Truck', 'Mitsubishi Canter (2020)', '5,000 kg', '120,800 km', 'Maintenance')">Edit</button>
-                            <button class="action-btn service-link" onclick="openLogServiceModal('VHC-004', 'Mitsubishi Canter (2020)')"><span class="icon-wrench">🔧</span> Log Service</button>
-                            <button class="action-btn delete-link" onclick="deleteVehicleRow(this, 'VHC-004')">Delete</button>
-                        </td>
-                    </tr>
-                    <!-- Row 5 -->
-                    <tr data-status="reserved" data-id="VHC-005">
-                        <td><strong class="vehicle-id-text">VHC-005</strong></td>
-                        <td><span class="plate-no-link">MNO-7890</span></td>
-                        <td>Van</td>
-                        <td>Ford Transit (2022)</td>
-                        <td>3,500 kg</td>
-                        <td>34,500 km</td>
-                        <td><span class="status-pill-badge badge-reserved">Reserved</span></td>
-                        <td class="text-right action-links">
-                            <a href="<?= htmlspecialchars($dashboard['basePath'] . '/routes?vehicle=VHC-005') ?>" class="action-btn map-link"><span class="icon-red">📍</span> Map</a>
-                            <button class="action-btn view-link" onclick="viewVehicleDetails('VHC-005', 'MNO-7890', 'Van', 'Ford Transit (2022)', '3,500 kg', '34,500 km', 'Reserved')">View</button>
-                            <button class="action-btn edit-link" onclick="editVehicle('VHC-005', 'MNO-7890', 'Van', 'Ford Transit (2022)', '3,500 kg', '34,500 km', 'Reserved')">Edit</button>
-                            <button class="action-btn service-link" onclick="openLogServiceModal('VHC-005', 'Ford Transit (2022)')"><span class="icon-wrench">🔧</span> Log Service</button>
-                            <button class="action-btn delete-link" onclick="deleteVehicleRow(this, 'VHC-005')">Delete</button>
-                        </td>
-                    </tr>
-                    <!-- Row 6 -->
-                    <tr data-status="inactive" data-id="VHC-006">
-                        <td><strong class="vehicle-id-text">VHC-006</strong></td>
-                        <td><span class="plate-no-link">PQR-1234</span></td>
-                        <td>Sedan</td>
-                        <td>Toyota Vios (2023)</td>
-                        <td>500 kg</td>
-                        <td>8,200 km</td>
-                        <td><span class="status-pill-badge badge-inactive">Inactive</span></td>
-                        <td class="text-right action-links">
-                            <a href="<?= htmlspecialchars($dashboard['basePath'] . '/routes?vehicle=VHC-006') ?>" class="action-btn map-link"><span class="icon-red">📍</span> Map</a>
-                            <button class="action-btn view-link" onclick="viewVehicleDetails('VHC-006', 'PQR-1234', 'Sedan', 'Toyota Vios (2023)', '500 kg', '8,200 km', 'Inactive')">View</button>
-                            <button class="action-btn edit-link" onclick="editVehicle('VHC-006', 'PQR-1234', 'Sedan', 'Toyota Vios (2023)', '500 kg', '8,200 km', 'Inactive')">Edit</button>
-                            <button class="action-btn service-link" onclick="openLogServiceModal('VHC-006', 'Toyota Vios (2023)')"><span class="icon-wrench">🔧</span> Log Service</button>
-                            <button class="action-btn delete-link" onclick="deleteVehicleRow(this, 'VHC-006')">Delete</button>
-                        </td>
-                    </tr>
-                </tbody>
+                <tbody id="vehicle-table-body"></tbody>
             </table>
         </div>
     </div>
@@ -182,10 +77,6 @@
                     <input type="text" id="add-brand" class="form-control" placeholder="e.g. Isuzu Elf (2023)" required />
                 </div>
                 <div class="form-group">
-                    <label>Payload Capacity (kg)</label>
-                    <input type="text" id="add-capacity" class="form-control" placeholder="e.g. 4,500 kg" required />
-                </div>
-                <div class="form-group">
                     <label>Odometer Reading (km)</label>
                     <input type="text" id="add-odometer" class="form-control" placeholder="e.g. 15,200 km" required />
                 </div>
@@ -218,31 +109,27 @@
         <div class="modal-body">
             <div class="details-summary-header">
                 <div>
-                    <span class="badge-code-lg" id="view-modal-id">VHC-001</span>
-                    <h2 id="view-modal-brand" class="margin-top-xs">Isuzu Giga (2022)</h2>
-                    <p class="plate-text-lg" id="view-modal-plate">Plate: ABC-1234</p>
+                    <span class="badge-code-lg" id="view-modal-id"></span>
+                    <h2 id="view-modal-brand" class="margin-top-xs"></h2>
+                    <p class="plate-text-lg" id="view-modal-plate"></p>
                 </div>
                 <div id="view-modal-status-badge">
-                    <span class="status-pill-badge badge-available">Available</span>
+                    <span class="status-pill-badge"></span>
                 </div>
             </div>
             <hr class="divider" />
             <div class="details-grid">
                 <div class="details-item">
                     <span class="details-label">Type</span>
-                    <strong id="view-modal-type">Truck</strong>
-                </div>
-                <div class="details-item">
-                    <span class="details-label">Payload Capacity</span>
-                    <strong id="view-modal-capacity">10,000 kg</strong>
+                    <strong id="view-modal-type"></strong>
                 </div>
                 <div class="details-item">
                     <span class="details-label">Odometer</span>
-                    <strong id="view-modal-odometer">45,320 km</strong>
+                    <strong id="view-modal-odometer"></strong>
                 </div>
                 <div class="details-item">
                     <span class="details-label">Next Service Due</span>
-                    <strong>Sep 15, 2026</strong>
+                    <strong>Not set</strong>
                 </div>
             </div>
         </div>
@@ -558,7 +445,6 @@ function submitNewVehicle(e) {
     const plate = document.getElementById('add-plate').value;
     const type = document.getElementById('add-type').value;
     const brand = document.getElementById('add-brand').value;
-    const cap = document.getElementById('add-capacity').value;
     const odo = document.getElementById('add-odometer').value;
     const status = document.getElementById('add-status').value;
 
@@ -577,13 +463,12 @@ function submitNewVehicle(e) {
         <td><span class="plate-no-link">${plate}</span></td>
         <td>${type}</td>
         <td>${brand}</td>
-        <td>${cap}</td>
         <td>${odo}</td>
         <td><span class="status-pill-badge ${badgeClass}">${status}</span></td>
         <td class="text-right action-links">
             <a href="${basePath}/routes?vehicle=${vId}" class="action-btn map-link"><span class="icon-red">📍</span> Map</a>
-            <button class="action-btn view-link" onclick="viewVehicleDetails('${vId}', '${plate}', '${type}', '${brand}', '${cap}', '${odo}', '${status}')">View</button>
-            <button class="action-btn edit-link" onclick="editVehicle('${vId}', '${plate}', '${type}', '${brand}', '${cap}', '${odo}', '${status}')">Edit</button>
+            <button class="action-btn view-link" onclick="viewVehicleDetails('${vId}', '${plate}', '${type}', '${brand}', '${odo}', '${status}')">View</button>
+            <button class="action-btn edit-link" onclick="editVehicle('${vId}', '${plate}', '${type}', '${brand}', '${odo}', '${status}')">Edit</button>
             <button class="action-btn service-link" onclick="openLogServiceModal('${vId}', '${brand}')"><span class="icon-wrench">🔧</span> Log Service</button>
             <button class="action-btn delete-link" onclick="deleteVehicleRow(this, '${vId}')">Delete</button>
         </td>
@@ -594,12 +479,11 @@ function submitNewVehicle(e) {
     alert(`Vehicle ${vId} registered successfully!`);
 }
 
-function viewVehicleDetails(vId, plate, type, brand, cap, odo, status) {
+function viewVehicleDetails(vId, plate, type, brand, odo, status) {
     document.getElementById('view-modal-id').innerText = vId;
     document.getElementById('view-modal-brand').innerText = brand;
     document.getElementById('view-modal-plate').innerText = 'Plate: ' + plate;
     document.getElementById('view-modal-type').innerText = type;
-    document.getElementById('view-modal-capacity').innerText = cap;
     document.getElementById('view-modal-odometer').innerText = odo;
 
     const badgeClass = status === 'Available' ? 'badge-available' :
@@ -614,13 +498,12 @@ function closeViewModal() {
     document.getElementById('view-vehicle-modal').style.display = 'none';
 }
 
-function editVehicle(vId, plate, type, brand, cap, odo, status) {
+function editVehicle(vId, plate, type, brand, odo, status) {
     openAddVehicleModal();
     document.getElementById('add-vhc-id').value = vId;
     document.getElementById('add-plate').value = plate;
     document.getElementById('add-type').value = type;
     document.getElementById('add-brand').value = brand;
-    document.getElementById('add-capacity').value = cap;
     document.getElementById('add-odometer').value = odo;
     document.getElementById('add-status').value = status;
 }
@@ -652,19 +535,18 @@ function deleteVehicleRow(btn, vId) {
 }
 
 function exportFleetCSV() {
-    let csv = "VEHICLE ID,PLATE NO,TYPE,BRAND & MODEL,CAPACITY,ODOMETER,STATUS\n";
+    let csv = "VEHICLE ID,PLATE NO,TYPE,BRAND & MODEL,ODOMETER,STATUS\n";
     const rows = document.querySelectorAll('#vehicle-table-body tr');
     rows.forEach(r => {
         const cols = r.querySelectorAll('td');
-        if (cols.length >= 7) {
+        if (cols.length >= 6) {
             const rowData = [
                 cols[0].innerText.trim(),
                 cols[1].innerText.trim(),
                 cols[2].innerText.trim(),
                 `"${cols[3].innerText.trim()}"`,
                 cols[4].innerText.trim(),
-                cols[5].innerText.trim(),
-                cols[6].innerText.trim()
+                cols[5].innerText.trim()
             ];
             csv += rowData.join(",") + "\n";
         }
