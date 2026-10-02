@@ -33,7 +33,7 @@ class DatabaseSeeder extends Seeder
         );
 
         // Coherent sample data for local demos and project defense.
-        $users = User::factory(9)->create();
+        $users = User::factory(9)->create(['role' => 'User', 'status' => 'active']);
         $vehicles = Vehicle::factory(10)->create();
         $drivers = Driver::factory(10)->recycle($users)->create();
         $reservations = Reservation::factory(10)->recycle($users)->create();
