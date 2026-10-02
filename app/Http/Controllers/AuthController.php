@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Alert;
 use App\Models\User;
+use App\Models\TrustedDevice;
 use App\Notifications\TwoFactorCodeNotification;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Password;
 use Illuminate\View\View;
 use App\Notifications\Channels\BrevoApiException;
@@ -18,6 +20,7 @@ class AuthController extends Controller
 {
     private const TWO_FACTOR_VALID_MINUTES = 10;
     private const REMEMBER_MINUTES = 7 * 24 * 60;
+    private const TRUSTED_DEVICE_COOKIE = 'fleetops_otp_device';
 
     public function create(): View { return view('login'); }
 
@@ -35,6 +38,14 @@ class AuthController extends Controller
 
         if (! $user instanceof User || $user->status !== 'active') {
             return back()->withErrors(['email' => 'Invalid email or password.'])->onlyInput('email');
+        }
+
+        if ($this->hasTrustedDevice($request, $user)) {
+            $request->session()->forget('two_factor');
+            Auth::login($user);
+            $request->session()->regenerate();
+
+            return redirect()->intended('/dashboard');
         }
 
         if (! $this->issueTwoFactorCode($user)) {
@@ -84,6 +95,10 @@ class AuthController extends Controller
         $remember = $request->boolean('remember');
         $request->session()->forget('two_factor');
 
+        if ($remember) {
+            $this->rememberDevice($request, $user);
+        }
+
         Auth::guard('web')->setRememberDuration(self::REMEMBER_MINUTES);
         Auth::login($user, $remember);
         $request->session()->regenerate();
@@ -110,6 +125,53 @@ class AuthController extends Controller
         }
 
         return back()->with('status', 'A new verification code has been sent to your email.');
+    }
+
+    private function hasTrustedDevice(Request $request, User $user): bool
+    {
+        $cookie = $request->cookie(self::TRUSTED_DEVICE_COOKIE);
+        if (! is_string($cookie) || ! preg_match('/^([a-f0-9]{24}):([a-f0-9]{64})$/', $cookie, $parts)) {
+            return false;
+        }
+
+        $device = TrustedDevice::where('user_id', $user->id)
+            ->where('selector', $parts[1])
+            ->where('expires_at', '>', now())
+            ->first();
+
+        // Binding the token to the password invalidates trust after a password change.
+        return $device !== null && hash_equals(
+            $device->token_hash,
+            hash('sha256', $parts[2].'|'.$user->getAuthPassword())
+        );
+    }
+
+    private function rememberDevice(Request $request, User $user): void
+    {
+        TrustedDevice::where('user_id', $user->id)->where('expires_at', '<=', now())->delete();
+
+        $selector = bin2hex(random_bytes(12));
+        $token = bin2hex(random_bytes(32));
+
+        TrustedDevice::create([
+            'user_id' => $user->id,
+            'selector' => $selector,
+            'token_hash' => hash('sha256', $token.'|'.$user->getAuthPassword()),
+            'user_agent' => substr((string) $request->userAgent(), 0, 255),
+            'expires_at' => now()->addDays(7),
+        ]);
+
+        Cookie::queue(Cookie::make(
+            self::TRUSTED_DEVICE_COOKIE,
+            $selector.':'.$token,
+            self::REMEMBER_MINUTES,
+            '/',
+            config('session.domain'),
+            $request->isSecure(),
+            true,
+            false,
+            'lax',
+        ));
     }
 
     private function issueTwoFactorCode(User $user): bool
