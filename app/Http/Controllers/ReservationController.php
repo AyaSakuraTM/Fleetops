@@ -26,6 +26,22 @@ class ReservationController extends Controller
             'destination.required' => 'Destination is required for reservation creation.',
         ]);
 
+        if ($request->user()->role !== 'Admin') {
+            $validated['employee_id'] = (string) $request->user()->id;
+        } else {
+            $validEmployee = \Illuminate\Support\Facades\DB::table('drivers')
+                ->join('users', 'drivers.user_id', '=', 'users.id')
+                ->whereRaw('LOWER(drivers.status) = ?', ['active'])
+                ->where('drivers.employee_id', $validated['employee_id'])
+                ->exists();
+
+            if (! $validEmployee) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'employee_id' => 'Please choose a valid active driver through the employee ID list.',
+                ]);
+            }
+        }
+
         $validated['reservation_no'] = 'RES-' . strtoupper((string) \Illuminate\Support\Str::uuid());
         $validated['status'] = 'Pending';
         $validated['user_id'] = $request->user()->id;

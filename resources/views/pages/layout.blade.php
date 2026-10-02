@@ -622,12 +622,7 @@
             </div>
         </header>
 
-        <section class="hero-card">
-            <div>
-                <p class="eyebrow">Fleet operations overview</p>
-                <h1><?= htmlspecialchars($dashboard['title']) ?></h1>
-            </div>
-        </section>
+        <h1 class="page-title"><?= htmlspecialchars($dashboard['title']) ?></h1>
 
         @include('pages.'.$dashboard['page'], ['dashboard' => $dashboard])
     </main>

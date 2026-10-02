@@ -136,8 +136,32 @@
                 </div>
             </div>
             <div class="quick-grid">
-                <?php foreach ($dashboard['quickActions'] as $action): ?>
-                    <div class="quick-item"><?= htmlspecialchars($action) ?></div>
+                <?php
+                $routePrefix = ($dashboard['basePath'] ?? '') === '/users' ? 'users.' : '';
+                $quickActionLinks = [
+                    'View Vehicles' => 'vehicles',
+                    'Review Fuel Logs' => 'fuel-logs',
+                    'View Reservations' => 'reservations',
+                    'View Routes' => 'routes',
+                    'Review Drivers' => 'drivers',
+                    'View Reports' => 'reports',
+                    'View Notifications' => 'notifications',
+                    'Settings' => 'settings',
+                    'Add Vehicle' => 'vehicles',
+                    'Log Fuel' => 'fuel-logs',
+                    'Create Reservation' => 'reservations',
+                    'Report Incident' => 'notifications',
+                    'Dispatch Log' => 'reservations',
+                    'Check Drivers' => 'drivers',
+                ];
+                foreach ($dashboard['quickActions'] as $action):
+                    $routeName = $routePrefix . ($quickActionLinks[$action] ?? '');
+                ?>
+                    <?php if ($routeName && \Illuminate\Support\Facades\Route::has($routeName)): ?>
+                        <a href="<?= route($routeName) ?>" class="quick-item"><?= htmlspecialchars($action) ?></a>
+                    <?php else: ?>
+                        <div class="quick-item"><?= htmlspecialchars($action) ?></div>
+                    <?php endif; ?>
                 <?php endforeach; ?>
             </div>
         </article>

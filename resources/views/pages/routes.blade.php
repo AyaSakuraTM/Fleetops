@@ -93,58 +93,6 @@
 </style>
 
 <div class="tracking-module-wrapper">
-    <!-- Top Analytics Overview Bar -->
-    <div class="tracking-analytics-grid">
-        <div class="analytics-card">
-            <div class="analytics-icon blue">🚚</div>
-            <div>
-                <p class="analytics-label">Active Trips</p>
-                <h3 class="analytics-value" id="stat-active-trips">3</h3>
-                <span class="analytics-sub text-teal">● Real-time tracking</span>
-            </div>
-        </div>
-        <div class="analytics-card">
-            <div class="analytics-icon green">🏁</div>
-            <div>
-                <p class="analytics-label">Completed Trips</p>
-                <h3 class="analytics-value" id="stat-completed-trips">18</h3>
-                <span class="analytics-sub">Today's total</span>
-            </div>
-        </div>
-        <div class="analytics-card">
-            <div class="analytics-icon yellow">⚠️</div>
-            <div>
-                <p class="analytics-label">Delayed Trips</p>
-                <h3 class="analytics-value" id="stat-delayed-trips">1</h3>
-                <span class="analytics-sub text-orange">Action recommended</span>
-            </div>
-        </div>
-        <div class="analytics-card">
-            <div class="analytics-icon teal">🎯</div>
-            <div>
-                <p class="analytics-label">Avg. ETA Accuracy</p>
-                <h3 class="analytics-value" id="stat-eta-accuracy">97.4%</h3>
-                <span class="analytics-sub text-teal">High precision</span>
-            </div>
-        </div>
-        <div class="analytics-card">
-            <div class="analytics-icon blue">📏</div>
-            <div>
-                <p class="analytics-label">Distance Today</p>
-                <h3 class="analytics-value" id="stat-total-dist">345.2 km</h3>
-                <span class="analytics-sub">Fleet mileage</span>
-            </div>
-        </div>
-        <div class="analytics-card">
-            <div class="analytics-icon orange">⛽</div>
-            <div>
-                <p class="analytics-label">Fuel Consumed</p>
-                <h3 class="analytics-value" id="stat-total-fuel">100.8 L</h3>
-                <span class="analytics-sub">Logistics cost tracked</span>
-            </div>
-        </div>
-    </div>
-
     <!-- Main Module Control Bar -->
     <div class="tracking-control-bar">
         <div class="control-left">
@@ -294,18 +242,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Active Dispatches List Card -->
-            <div class="panel-card shadow-sm margin-top-md">
-                <div class="panel-header-sub">
-                    <h3>Active Fleet Dispatches</h3>
-                    <!-- Count badge intentionally hidden; list remains -->
-                </div>
-                <div class="dispatch-list" id="dispatch-list-container">
-                    <!-- Dynamic rendering -->
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -345,9 +281,9 @@
                     <button id="btn-toggle-gps" class="btn-primary btn-sm" onclick="toggleBrowserGeolocation()">Start Live GPS Broadcast</button>
                 </div>
                 <div class="gps-metrics-grid margin-top-sm">
-                    <div><small>Latitude:</small> <span id="mobile-lat">14.5995</span></div>
-                    <div><small>Longitude:</small> <span id="mobile-lng">120.9842</span></div>
-                    <div><small>Speed:</small> <span id="mobile-speed">45 km/h</span></div>
+                    <div><small>Latitude:</small> <span id="mobile-lat">—</span></div>
+                    <div><small>Longitude:</small> <span id="mobile-lng">—</span></div>
+                    <div><small>Speed:</small> <span id="mobile-speed">—</span></div>
                     <div><small>Interval:</small> <span>Every 5s</span></div>
                 </div>
                 <div class="margin-top-sm">
@@ -426,6 +362,7 @@
     let simulatedGpsInterval = null;
     let currentStatusFilter = 'all';
     let currentSearchQuery = '';
+    let mapCenteredFromData = false;
 
     document.addEventListener('DOMContentLoaded', function () {
         initLeafletMap();
@@ -463,10 +400,10 @@
     }
 
     function initLeafletMap() {
-        // Center on Metro Manila / Philippines Fleet Area
+        // Do not center on fake data; the map re-centers on the selected real fleet location.
         map = L.map('fleet-map', {
-            center: [14.5995, 120.9842],
-            zoom: 12,
+            center: [0, 0],
+            zoom: 2,
             zoomControl: true
         });
 
@@ -513,6 +450,14 @@
                     applyFleetFilters();
                     updateDashboardAnalytics();
                     loadNotifications();
+
+                    if (!mapCenteredFromData && !activeVehicleId) {
+                        const first = fleetData.find(v => Number.isFinite(Number(v.latitude)) && Number.isFinite(Number(v.longitude)) && v.latitude !== 0 && v.longitude !== 0);
+                        if (first) {
+                            map.setView([first.latitude, first.longitude], 12);
+                            mapCenteredFromData = true;
+                        }
+                    }
 
                     if (activeVehicleId) {
                         const activeV = fleetData.find(v => v.id === activeVehicleId);
@@ -868,6 +813,7 @@
 
     function renderDispatchList(vehicles) {
         const container = document.getElementById('dispatch-list-container');
+        if (!container) return;
         container.innerHTML = '';
 
         if (vehicles.length === 0) {
@@ -908,12 +854,13 @@
             .then(data => {
                 if (data.success && data.analytics) {
                     const a = data.analytics;
-                    document.getElementById('stat-active-trips').innerText = a.active_trips;
-                    document.getElementById('stat-completed-trips').innerText = a.completed_trips;
-                    document.getElementById('stat-delayed-trips').innerText = a.delayed_trips;
-                    document.getElementById('stat-eta-accuracy').innerText = a.avg_eta_accuracy + '%';
-                    document.getElementById('stat-total-dist').innerText = a.total_distance_today_km + ' km';
-                    document.getElementById('stat-total-fuel').innerText = a.total_fuel_consumption_l + ' L';
+                    const set = (id, value) => { const el = document.getElementById(id); if (el) el.innerText = value; };
+                    set('stat-active-trips', a.active_trips);
+                    set('stat-completed-trips', a.completed_trips);
+                    set('stat-delayed-trips', a.delayed_trips);
+                    set('stat-eta-accuracy', a.avg_eta_accuracy + '%');
+                    set('stat-total-dist', a.total_distance_today_km + ' km');
+                    set('stat-total-fuel', a.total_fuel_consumption_l + ' L');
                 }
             });
     }
@@ -993,9 +940,15 @@
         const vehicleId = document.getElementById('mobile-vehicle-select').value;
         const v = fleetData.find(item => item.id == vehicleId) || fleetData[0];
         
-        let lat = v ? v.latitude : 14.5995;
-        let lng = v ? v.longitude : 120.9842;
+        let lat = v ? v.latitude : null;
+        let lng = v ? v.longitude : null;
         let speed = 48;
+
+        if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
+            const log = document.getElementById('gps-log-output');
+            log.innerText += `\n[ERROR] No live coordinates are available for the selected vehicle yet.`;
+            return;
+        }
 
         sendLocationUpdate(lat, lng, speed);
     }
@@ -1013,8 +966,20 @@
 
     function simulateDestinationArrival() {
         const vehicleId = parseInt(document.getElementById('mobile-vehicle-select').value);
-        // Destination of Trip 101 is QC Hub: 14.6500, 121.0300
-        sendLocationUpdate(14.6500, 121.0300, 0);
+        const v = fleetData.find(item => item.id === vehicleId);
+        if (!v || !v.active_trip_id) {
+            const log = document.getElementById('gps-log-output');
+            log.innerText += `\n[ERROR] No active trip found for the selected vehicle — cannot simulate destination arrival.`;
+            return;
+        }
+        fetch(basePath + `/api/trip/${v.active_trip_id}/route`)
+            .then(res => res.json())
+            .then(data => {
+                const dest = data.trip && data.trip.dest_coords;
+                if (Array.isArray(dest) && dest.length >= 2 && Number.isFinite(Number(dest[0]))) {
+                    sendLocationUpdate(Number(dest[0]), Number(dest[1]), 0);
+                }
+            });
     }
 
     function sendLocationUpdate(lat, lng, speed) {
@@ -1090,7 +1055,11 @@
     }
 
     function recenterMap() {
-        map.setView([14.5995, 120.9842], 12);
+        const v = activeVehicleId ? fleetData.find(item => item.id === activeVehicleId)
+            : fleetData.find(item => Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude)));
+        if (v && Number.isFinite(Number(v.latitude)) && Number.isFinite(Number(v.longitude))) {
+            map.setView([v.latitude, v.longitude], 12);
+        }
     }
 
     function toggleFullscreenMap() {

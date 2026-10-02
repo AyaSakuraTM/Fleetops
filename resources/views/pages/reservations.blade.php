@@ -199,6 +199,29 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
     transition: background 0.15s;
 }
 .close-btn:hover { background: rgba(229,72,77,0.08); color: #e5484d; }
+.employee-combobox { position: relative; }
+.employee-options {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 12000;
+    max-height: 180px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgba(20,33,61,.18);
+    margin: 0;
+    padding: 6px;
+    list-style: none;
+}
+.employee-combobox.open .employee-options { display: block; }
+.employee-options li { padding: 9px 10px; border-radius: 8px; cursor: pointer; text-align: left; }
+.employee-options li.active, .employee-options li:hover { background: rgba(67,97,238,0.10); }
+.employee-option-empty { color: var(--muted); cursor: default; }
+@media (max-width: 560px) { .employee-options { max-height: 150px; } }
 .form-group { margin-bottom: 14px; }
 .form-group label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.05em; }
 .form-control {
@@ -548,13 +571,35 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
             <h3>New Reservation</h3>
             <button type="button" class="close-btn" onclick="closeHubModal('modal-new-reservation')">✕</button>
         </div>
-        <form method="POST" action="<?= route($dashboard['isAdmin'] ? 'reservations.store' : 'users.reservations.store') ?>">
+        <form id="new-reservation-form" method="POST" action="<?= route($dashboard['isAdmin'] ? 'reservations.store' : 'users.reservations.store') ?>">
             <?= csrf_field() ?>
             <div class="modal-body">
+                <?php
+                $oldEmployeeId = old('employee_id', '');
+                $oldEmployeeLabel = '';
+                foreach ($drivers as $driverOption) {
+                    if ($driverOption->employee_id === $oldEmployeeId) {
+                        $oldEmployeeLabel = $driverOption->driver_name . ' — ' . $driverOption->employee_id;
+                        break;
+                    }
+                }
+                ?>
                 <div class="form-group">
-                    <label for="res-employee-id">Employee ID</label>
+                    <label for="res-employee-search">Employee ID</label>
                     <?php if ($dashboard['isAdmin']): ?>
-                        <input class="form-control" type="text" id="res-employee-id" name="employee_id" value="<?= htmlspecialchars(old('employee_id', ''), ENT_QUOTES, 'UTF-8') ?>" required maxlength="50" placeholder="Employee ID">
+                        <div class="employee-combobox" id="res-employee-combobox">
+                            <input class="form-control" type="text" id="res-employee-search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="res-employee-options" autocomplete="off" value="<?= htmlspecialchars($oldEmployeeLabel, ENT_QUOTES, 'UTF-8') ?>" required placeholder="Search driver name or employee ID">
+                            <input type="hidden" name="employee_id" id="res-employee-id" value="<?= htmlspecialchars($oldEmployeeId, ENT_QUOTES, 'UTF-8') ?>">
+                            <ul class="employee-options" id="res-employee-options" role="listbox">
+                                <?php foreach ($drivers as $driverOption): ?>
+                                    <?php $driverLabel = htmlspecialchars($driverOption->driver_name . ' — ' . $driverOption->employee_id, ENT_QUOTES, 'UTF-8'); ?>
+                                    <li role="option" data-id="<?= (int) $driverOption->id ?>" data-value="<?= htmlspecialchars($driverOption->employee_id, ENT_QUOTES, 'UTF-8') ?>" data-search="<?= htmlspecialchars(strtolower($driverOption->driver_name . ' ' . $driverOption->employee_id), ENT_QUOTES, 'UTF-8') ?>"><?= $driverLabel ?></li>
+                                <?php endforeach; ?>
+                                <?php if (count($drivers) === 0): ?>
+                                    <li class="employee-option-empty">No active drivers available</li>
+                                <?php endif; ?>
+                            </ul>
+                        </div>
                     <?php else: ?>
                         <input class="form-control" type="text" id="res-employee-id" value="<?= htmlspecialchars($dashboard['user']['name'], ENT_QUOTES, 'UTF-8') ?>" disabled>
                     <?php endif; ?>
@@ -727,6 +772,88 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
 <script>
     // Base URL for convert route (without the reservation ID)
     var convertBaseUrl = <?= json_encode(url('/dispatches/convert')) ?>;
+
+    // Employee ID combobox (admin New Reservation)
+    (function () {
+        const comboInput = document.getElementById('res-employee-search');
+        const comboList  = document.getElementById('res-employee-options');
+        const hiddenInput = document.getElementById('res-employee-id');
+        const combobox = document.getElementById('res-employee-combobox');
+        const form = document.getElementById('new-reservation-form');
+        if (!comboInput || !comboList || !hiddenInput || !combobox) return;
+
+        let activeIndex = -1;
+
+        function options() {
+            return Array.from(comboList.querySelectorAll('li[data-value]'));
+        }
+        function visibleOptions() {
+            return options().filter(li => li.style.display !== 'none');
+        }
+        function openList() { combobox.classList.add('open'); comboInput.setAttribute('aria-expanded', 'true'); }
+        function closeList() { combobox.classList.remove('open'); comboInput.setAttribute('aria-expanded', 'false'); activeIndex = -1; highlight(); }
+        function highlight() {
+            const vis = visibleOptions();
+            options().forEach(li => li.classList.remove('active'));
+            if (activeIndex >= 0 && activeIndex < vis.length) vis[activeIndex].classList.add('active');
+        }
+        function filterList() {
+            const query = comboInput.value.trim().toLowerCase();
+            options().forEach(li => {
+                const text = (li.dataset.search || li.textContent).toLowerCase();
+                li.style.display = (!query || text.includes(query)) ? '' : 'none';
+            });
+            activeIndex = -1;
+            filterNoResults();
+            openList();
+        }
+        function filterNoResults() {
+            const empty = comboList.querySelector('.employee-option-empty');
+            if (empty) empty.style.display = visibleOptions().length === 0 ? '' : 'none';
+        }
+        function choose(item) {
+            comboInput.value = item.textContent.trim();
+            hiddenInput.value = item.dataset.value;
+            comboInput.setCustomValidity('');
+            closeList();
+        }
+
+        comboInput.addEventListener('focus', function () { activeIndex = -1; filterList(); });
+        comboInput.addEventListener('input', function () {
+            hiddenInput.value = '';
+            filterList();
+        });
+        comboInput.addEventListener('blur', function () { setTimeout(closeList, 150); });
+        comboInput.addEventListener('keydown', function (e) {
+            const vis = visibleOptions();
+            if (e.key === 'ArrowDown') { activeIndex = Math.min(activeIndex + 1, vis.length - 1); highlight(); e.preventDefault(); }
+            else if (e.key === 'ArrowUp') { activeIndex = Math.max(activeIndex - 1, 0); highlight(); e.preventDefault(); }
+            else if (e.key === 'Enter') {
+                if (combobox.classList.contains('open') && activeIndex >= 0 && vis[activeIndex]) { choose(vis[activeIndex]); e.preventDefault(); }
+            }
+            else if (e.key === 'Escape') { closeList(); e.preventDefault(); }
+        });
+        comboList.addEventListener('mousedown', function (e) {
+            const item = e.target.closest('li[data-value]');
+            if (item) choose(item);
+        });
+        if (form) {
+            form.addEventListener('submit', function (e) {
+                if (comboInput && hiddenInput && !hiddenInput.value) {
+                    const query = comboInput.value.trim().toLowerCase();
+                    const match = options().find(item => {
+                        const label = item.textContent.trim().toLowerCase();
+                        const search = (item.dataset.search || label).toLowerCase();
+                        return search === query || label === query || (item.dataset.value || '').toLowerCase() === query;
+                    });
+                    if (match) { choose(match); return; }
+                    comboInput.setCustomValidity('Please select an employee from the list.');
+                    comboInput.reportValidity();
+                    e.preventDefault();
+                }
+            });
+        }
+    })();
 
     function hubModal(id) {
         document.getElementById(id).style.display = 'flex';

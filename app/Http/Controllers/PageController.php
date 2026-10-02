@@ -237,11 +237,23 @@ class PageController extends Controller
                 ->join('users', 'drivers.user_id', '=', 'users.id')
                 ->whereRaw('LOWER(drivers.status) = ?', ['active'])
                 ->orderBy('users.name')
-                ->get(['drivers.id', 'users.name as driver_name']);
+                ->get(['drivers.id', 'drivers.employee_id', 'users.name as driver_name']);
         }
 
         if ($page === 'vehicles') {
             $dashboard['vehicles'] = Vehicle::orderBy('plate_number')->get();
+
+            // Generate the next vehicle code from the configured format (VHC-001, VHC-002, ...).
+            $existingCodes = Vehicle::query()
+                ->where('vehicle_code', 'like', 'VHC-%')
+                ->pluck('vehicle_code');
+            $nextVehicleNumber = 0;
+            foreach ($existingCodes as $code) {
+                if (preg_match('/^VHC-(\d+)$/i', (string) $code, $matches)) {
+                    $nextVehicleNumber = max($nextVehicleNumber, (int) $matches[1]);
+                }
+            }
+            $dashboard['nextVehicleCode'] = 'VHC-' . str_pad($nextVehicleNumber + 1, 3, '0', STR_PAD_LEFT);
         }
 
         return view('layout', compact('dashboard'));

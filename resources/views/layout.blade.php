@@ -88,6 +88,13 @@
       /* Dark mode topbar sun icon to indicate switch to light */
       [data-theme="dark"] #darkModeBtn svg { stroke: #f6c24f; }
 
+      .page-title {
+        margin: 0 0 16px !important;
+        color: var(--text);
+        font-size: 1.35rem;
+        font-weight: 800;
+      }
+
       /* ── Sidebar Shell ── */
       .sidebar {
         background: linear-gradient(180deg, #1a2747 0%, #0f1b38 100%) !important;
@@ -412,14 +419,33 @@
         .main-panel { padding: 18px 16px 20px !important; }
       }
       @media (max-width: 640px) {
-        .topbar { gap: 10px !important; margin-bottom: 14px !important; }
-        .search-bar { padding: 10px 14px !important; }
+        .topbar {
+          display: grid !important;
+          grid-template-columns: 44px minmax(0, 1fr) auto;
+          gap: 8px !important;
+          align-items: center !important;
+          margin-bottom: 14px !important;
+        }
+        .sidebar-toggle {
+          width: 44px !important;
+          height: 44px !important;
+          border-radius: 12px !important;
+        }
+        .search-bar {
+          width: 100% !important;
+          min-width: 0 !important;
+          padding: 10px !important;
+          gap: 7px !important;
+          box-sizing: border-box;
+        }
+        .search-bar input { min-width: 0; font-size: 0.82rem !important; }
+        .topbar-actions { gap: 4px !important; }
         .main-panel { padding: 14px 12px 18px !important; }
         .stats-grid { grid-template-columns: 1fr !important; gap: 12px !important; }
         .hero-card { border-radius: 18px !important; margin-bottom: 14px !important; padding: 18px !important; }
         .hero-card h1 { font-size: 1.45rem !important; }
         .hero-badge { align-self: flex-start; }
-        .tb-icon-btn { width: 38px !important; height: 38px !important; }
+        .tb-icon-btn { width: 44px !important; height: 44px !important; }
         .quick-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
         .panel { padding: 16px 16px 18px !important; border-radius: 16px !important; }
         .table-wrapper { overflow-x: auto !important; }
@@ -622,12 +648,7 @@
             </div>
         </header>
 
-        <section class="hero-card">
-            <div>
-                <p class="eyebrow">Fleet operations overview</p>
-                <h1><?= htmlspecialchars($dashboard['title']) ?></h1>
-            </div>
-        </section>
+        <h1 class="page-title"><?= htmlspecialchars($dashboard['title']) ?></h1>
 
         @include('pages.'.$dashboard['page'], ['dashboard' => $dashboard])
     </main>

@@ -76,7 +76,8 @@
             <div class="form-grid">
                 <div class="form-group">
                     <label>Vehicle ID</label>
-                    <input type="text" id="add-vhc-id" name="vehicle_code" class="form-control" placeholder="e.g. VHC-007" required maxlength="50" />
+                    <input type="text" id="add-vhc-id" name="vehicle_code" class="form-control" value="<?= htmlspecialchars($dashboard['nextVehicleCode'] ?? '', ENT_QUOTES, 'UTF-8') ?>" readonly maxlength="50" />
+                    <small class="settings-help">Auto-generated from the existing fleet sequence.</small>
                 </div>
                 <div class="form-group">
                     <label>Plate No.</label>
@@ -424,6 +425,10 @@ function filterByStatus(statusKey, btnElem) {
 
 function openAddVehicleModal() {
     document.getElementById('add-vehicle-modal').style.display = 'flex';
+    const idInput = document.getElementById('add-vhc-id');
+    if (idInput && document.querySelector('#add-vehicle-modal h3').textContent.includes('Add')) {
+        idInput.value = "<?= htmlspecialchars($dashboard['nextVehicleCode'] ?? '', ENT_QUOTES, 'UTF-8') ?>";
+    }
 }
 function closeAddVehicleModal() {
     document.getElementById('add-vehicle-modal').style.display = 'none';
@@ -431,6 +436,8 @@ function closeAddVehicleModal() {
     document.getElementById('vehicle-form').action = "<?= route('vehicles.store') ?>";
     document.getElementById('vehicle-method').value = '';
     document.querySelector('#add-vehicle-modal h3').textContent = '+ Add New Vehicle';
+    const idInput = document.getElementById('add-vhc-id');
+    if (idInput) { idInput.value = "<?= htmlspecialchars($dashboard['nextVehicleCode'] ?? '', ENT_QUOTES, 'UTF-8') ?>"; }
 }
 
 function viewVehicleDetails(button) {
