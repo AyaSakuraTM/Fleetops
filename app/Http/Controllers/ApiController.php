@@ -3,18 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Support\Database;
-use App\Models\LocationLog;
-use App\Models\TripRecord;
-use App\Models\Vehicle;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use PDO;
 
 class ApiController
 {
     private static string $storageFile = __DIR__ . '/../../storage/fleet_state.json';
-    private const DATABASE_TRIP_ID_OFFSET = 4000000000000;
 
     public function __construct()
     {
@@ -22,31 +15,12 @@ class ApiController
     }
 
     /**
-     * Authenticate and check RBAC permissions via Session or Bearer JWT token header
+     * Authenticate with Laravel guards and check role permissions.
      */
     public function authorizeRole(array $allowedRoles = []): array
     {
-        // Check session role first
-        $userRole = $_SESSION['user_role'] ?? 'Dispatcher';
-        $userId = $_SESSION['user_id'] ?? 1;
-        $userName = $_SESSION['user_name'] ?? 'Fleet Dispatcher';
-
-        // Check Bearer JWT token in Authorization header if present
-        $headers = function_exists('getallheaders') ? getallheaders() : [];
-        $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
-        if (str_starts_with($authHeader, 'Bearer ')) {
-            $token = substr($authHeader, 7);
-            // Basic JWT decode parsing (header.payload.signature)
-            $parts = explode('.', $token);
-            if (count($parts) === 3) {
-                $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
-                if (is_array($payload) && isset($payload['role'])) {
-                    $userRole = $payload['role'];
-                    $userId = $payload['sub'] ?? $userId;
-                    $userName = $payload['name'] ?? $userName;
-                }
-            }
-        }
+        $user = auth('sanctum')->user() ?? auth('web')->user();
+        $userRole = $user?->role ?? '';
 
         if (!empty($allowedRoles) && !in_array($userRole, $allowedRoles, true)) {
             http_response_code(403);
@@ -57,7 +31,7 @@ class ApiController
             exit;
         }
 
-        return ['id' => $userId, 'name' => $userName, 'role' => $userRole];
+        return ['id' => $user?->id, 'name' => $user?->name, 'role' => $userRole];
     }
 
     /**
@@ -65,80 +39,44 @@ class ApiController
      */
     public function getLiveVehicles(): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin']);
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
         $state = $this->getFleetState();
 
         $vehicles = [];
-        $databaseVehicles = Vehicle::query()->get();
-        if ($databaseVehicles->isNotEmpty()) {
-            foreach ($databaseVehicles as $vehicle) {
-                $databaseTrip = $this->findDatabaseActiveTripForVehicle((int)$vehicle->id);
-                $trip = $databaseTrip ? $this->databaseTripToArray($databaseTrip) : null;
-                $loc = $databaseTrip
-                    ? $this->getDatabaseTripLocation($databaseTrip, $trip)
-                    : $this->getDatabaseVehicleLocation($vehicle);
-                $driver = $databaseTrip?->driver;
-                $vehicleStatus = $databaseTrip && strtolower((string)$vehicle->status) === 'in transit'
-                    ? 'Active'
-                    : (string)$vehicle->status;
+        foreach ($state['vehicles'] as $v) {
+            $trip = $this->findActiveTripForVehicle($state, $v['id']);
+            $loc = $state['locations'][$v['id']] ?? [
+                'latitude' => 14.5995,
+                'longitude' => 120.9842,
+                'speed' => 45.0,
+                'timestamp' => date('Y-m-d H:i:s'),
+            ];
 
-                $vehicles[] = [
-                    'id' => (int)$vehicle->id,
-                    'vehicle_code' => $vehicle->vehicle_code,
-                    'plate_number' => $vehicle->plate_number,
-                    'type' => $vehicle->type,
-                    'status' => $vehicleStatus,
-                    'fuel_level' => (float)$vehicle->fuel_level,
-                    'driver_name' => $driver?->name ?? 'Unassigned',
-                    'employee_id' => $driver?->employee_id ?? '',
-                    'latitude' => (float)$loc['latitude'],
-                    'longitude' => (float)$loc['longitude'],
-                    'speed' => (float)$loc['speed'],
-                    'last_update' => $loc['timestamp'],
-                    'active_trip_id' => $databaseTrip ? $trip['id'] : ($trip['id'] ?? null),
-                    'origin' => $trip['origin'] ?? 'Depot Central',
-                    'destination' => $trip['destination'] ?? 'Standby',
-                    'trip_status' => $trip['status'] ?? 'Idle',
-                    'route_color' => $trip ? $this->calculateRouteColor($trip, (float)$loc['speed']) : 'green',
-                    'trip_start_time' => $trip['departure_time'] ?? null,
-                ];
-            }
-        } else {
-            foreach ($state['vehicles'] as $v) {
-                $trip = $this->findActiveTripForVehicle($state, $v['id']);
-                $loc = $state['locations'][$v['id']] ?? [
-                    'latitude' => 14.5995,
-                    'longitude' => 120.9842,
-                    'speed' => 45.0,
-                    'timestamp' => date('Y-m-d H:i:s'),
-                ];
+            $driver = $state['drivers'][$v['id']] ?? [
+                'name' => 'Harvey Villarin',
+                'employee_id' => 'DRV-1001',
+            ];
 
-                $driver = $state['drivers'][$v['id']] ?? [
-                    'name' => 'Harvey Villarin',
-                    'employee_id' => 'DRV-1001',
-                ];
-
-                $vehicles[] = [
-                    'id' => $v['id'],
-                    'vehicle_code' => $v['vehicle_code'],
-                    'plate_number' => $v['plate_number'],
-                    'type' => $v['type'],
-                    'status' => $v['status'],
-                    'fuel_level' => (float)$v['fuel_level'],
-                    'driver_name' => $driver['name'],
-                    'employee_id' => $driver['employee_id'],
-                    'latitude' => (float)$loc['latitude'],
-                    'longitude' => (float)$loc['longitude'],
-                    'speed' => (float)$loc['speed'],
-                    'last_update' => $loc['timestamp'],
-                    'active_trip_id' => $trip ? $trip['id'] : null,
-                    'origin' => $trip ? $trip['origin'] : 'Depot Central',
-                    'destination' => $trip ? $trip['destination'] : 'Standby',
-                    'trip_status' => $trip ? $trip['status'] : 'Idle',
-                    'route_color' => $trip ? $this->calculateRouteColor($trip, $loc['speed']) : 'green',
-                    'trip_start_time' => $trip ? $trip['departure_time'] : null,
-                ];
-            }
+            $vehicles[] = [
+                'id' => $v['id'],
+                'vehicle_code' => $v['vehicle_code'],
+                'plate_number' => $v['plate_number'],
+                'type' => $v['type'],
+                'status' => $v['status'],
+                'fuel_level' => (float)$v['fuel_level'],
+                'driver_name' => $driver['name'],
+                'employee_id' => $driver['employee_id'],
+                'latitude' => (float)$loc['latitude'],
+                'longitude' => (float)$loc['longitude'],
+                'speed' => (float)$loc['speed'],
+                'last_update' => $loc['timestamp'],
+                'active_trip_id' => $trip ? $trip['id'] : null,
+                'origin' => $trip ? $trip['origin'] : 'Depot Central',
+                'destination' => $trip ? $trip['destination'] : 'Standby',
+                'trip_status' => $trip ? $trip['status'] : 'Idle',
+                'route_color' => $trip ? $this->calculateRouteColor($trip, $loc['speed']) : 'green',
+                'trip_start_time' => $trip ? $trip['departure_time'] : null,
+            ];
         }
 
         $this->jsonResponse([
@@ -151,66 +89,40 @@ class ApiController
     /**
      * GET /api/trips/active
      */
-    public function getActiveTrips(): JsonResponse
+    public function getActiveTrips(): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin']);
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
         $state = $this->getFleetState();
 
         $activeTrips = [];
-        $databaseTrips = TripRecord::query()->with(['vehicle', 'driver'])
-            ->where('status', '!=', 'Completed')
-            ->get();
-        if ($databaseTrips->isEmpty() && !Vehicle::query()->exists()) {
-            foreach ($state['trips'] as $t) {
-                if ($t['status'] === 'Completed') continue;
+        foreach ($state['trips'] as $t) {
+            if ($t['status'] === 'Completed') continue;
 
-                $v = $state['vehicles'][$t['vehicle_id']] ?? null;
-                $d = $state['drivers'][$t['driver_id']] ?? null;
-                $loc = $state['locations'][$t['vehicle_id']] ?? null;
+            $v = $state['vehicles'][$t['vehicle_id']] ?? null;
+            $d = $state['drivers'][$t['driver_id']] ?? null;
+            $loc = $state['locations'][$t['vehicle_id']] ?? null;
 
-                $speed = $loc ? (float)$loc['speed'] : 40.0;
-                $routeColor = $this->calculateRouteColor($t, $speed);
-                $eta = $this->computeEtaDetails($t, $loc);
+            $speed = $loc ? (float)$loc['speed'] : 40.0;
+            $routeColor = $this->calculateRouteColor($t, $speed);
+            $eta = $this->computeEtaDetails($t, $loc);
 
-                $activeTrips[] = array_merge($t, [
-                    'vehicle_code' => $v ? $v['vehicle_code'] : 'TRK-000',
-                    'plate_number' => $v ? $v['plate_number'] : 'N/A',
-                    'driver_name' => $d ? $d['name'] : 'Unassigned',
-                    'current_lat' => $loc ? (float)$loc['latitude'] : (float)$t['origin_lat'],
-                    'current_lng' => $loc ? (float)$loc['longitude'] : (float)$t['origin_lng'],
-                    'current_speed' => $speed,
-                    'route_color' => $routeColor,
-                    'eta' => $eta,
-                ]);
-            }
-        }
-
-        foreach ($databaseTrips as $databaseTrip) {
-            $trip = $this->ensureDatabaseTripCoordinates($databaseTrip);
-            $loc = $this->getDatabaseTripLocation($databaseTrip, $trip);
-            $vehicle = $databaseTrip->vehicle;
-            $driver = $databaseTrip->driver;
-            $activeTrips[] = array_merge($trip, [
-                'vehicle_code' => $vehicle?->vehicle_code ?? 'TRK-000',
-                'plate_number' => $vehicle?->plate_number ?? 'N/A',
-                'driver_name' => $driver?->name ?? 'Unassigned',
-                'current_lat' => (float)$loc['latitude'],
-                'current_lng' => (float)$loc['longitude'],
-                'current_speed' => (float)$loc['speed'],
-                'route_color' => $this->calculateRouteColor($trip, (float)$loc['speed']),
-                'eta' => $this->computeEtaDetails($trip, $loc),
+            $activeTrips[] = array_merge($t, [
+                'vehicle_code' => $v ? $v['vehicle_code'] : 'TRK-000',
+                'plate_number' => $v ? $v['plate_number'] : 'N/A',
+                'driver_name' => $d ? $d['name'] : 'Unassigned',
+                'current_lat' => $loc ? (float)$loc['latitude'] : (float)$t['origin_lat'],
+                'current_lng' => $loc ? (float)$loc['longitude'] : (float)$t['origin_lng'],
+                'current_speed' => $speed,
+                'route_color' => $routeColor,
+                'eta' => $eta,
             ]);
         }
 
-        return response()->json([
+        $this->jsonResponse([
             'success' => true,
             'count' => count($activeTrips),
             'trips' => $activeTrips,
-        ], 200, [
-            'Access-Control-Allow-Origin' => '*',
-            'Access-Control-Allow-Headers' => 'Content-Type, Authorization',
-            'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS',
-        ], JSON_PRETTY_PRINT);
+        ]);
     }
 
     /**
@@ -218,17 +130,14 @@ class ApiController
      */
     public function getTripRoute(int $tripId): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin']);
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
         $state = $this->getFleetState();
 
-        $databaseTrip = $this->findDatabaseTripByApiId($tripId);
-        $trip = $databaseTrip ? $this->ensureDatabaseTripCoordinates($databaseTrip) : null;
-        if (!$trip) {
-            foreach ($state['trips'] as $t) {
-                if ((int)$t['id'] === $tripId) {
-                    $trip = $t;
-                    break;
-                }
+        $trip = null;
+        foreach ($state['trips'] as $t) {
+            if ((int)$t['id'] === $tripId) {
+                $trip = $t;
+                break;
             }
         }
 
@@ -237,22 +146,14 @@ class ApiController
             return;
         }
 
-        $v = $databaseTrip?->vehicle ?? ($state['vehicles'][$trip['vehicle_id']] ?? null);
-        $d = $databaseTrip?->driver ?? ($state['drivers'][$trip['driver_id']] ?? null);
-        $loc = $databaseTrip
-            ? $this->getDatabaseTripLocation($databaseTrip, $trip)
-            : ($state['locations'][$trip['vehicle_id']] ?? [
-                'latitude' => $trip['origin_lat'],
-                'longitude' => $trip['origin_lng'],
-                'speed' => 45.0,
-                'fuel_level' => 85.0
-            ]);
-        $vehicleCode = $databaseTrip ? ($v?->vehicle_code ?? 'TRK-000') : ($v['vehicle_code'] ?? 'TRK-000');
-        $plateNumber = $databaseTrip ? ($v?->plate_number ?? 'N/A') : ($v['plate_number'] ?? 'N/A');
-        $driverName = $databaseTrip ? ($d?->name ?? 'Driver') : ($d['name'] ?? 'Driver');
-        $fuelLevel = $databaseTrip
-            ? ($loc['fuel_level'] ?? $v?->fuel_level ?? 80)
-            : ($loc['fuel_level'] ?? $v['fuel_level'] ?? 80);
+        $v = $state['vehicles'][$trip['vehicle_id']] ?? null;
+        $d = $state['drivers'][$trip['driver_id']] ?? null;
+        $loc = $state['locations'][$trip['vehicle_id']] ?? [
+            'latitude' => $trip['origin_lat'],
+            'longitude' => $trip['origin_lng'],
+            'speed' => 45.0,
+            'fuel_level' => 85.0
+        ];
 
         // Use one current-position route response for primary geometry, alternatives, and ETA.
         $routeResponse = $this->requestOpenRouteServiceRouteForTrip($trip, $loc);
@@ -281,16 +182,16 @@ class ApiController
             'trip' => [
                 'id' => $trip['id'],
                 'vehicle_id' => $trip['vehicle_id'],
-                'vehicle_code' => $vehicleCode,
-                'plate_number' => $plateNumber,
-                'driver_name' => $driverName,
+                'vehicle_code' => $v ? $v['vehicle_code'] : 'TRK-000',
+                'plate_number' => $v ? $v['plate_number'] : 'N/A',
+                'driver_name' => $d ? $d['name'] : 'Driver',
                 'origin' => $trip['origin'],
                 'destination' => $trip['destination'],
                 'origin_coords' => [(float)$trip['origin_lat'], (float)$trip['origin_lng']],
                 'dest_coords' => [(float)$trip['dest_lat'], (float)$trip['dest_lng']],
                 'current_coords' => [(float)$loc['latitude'], (float)$loc['longitude']],
                 'current_speed' => (float)$loc['speed'],
-                'fuel_level' => (float)$fuelLevel,
+                'fuel_level' => (float)($loc['fuel_level'] ?? ($v['fuel_level'] ?? 80)),
                 'departure_time' => $trip['departure_time'],
                 'status' => $trip['status'],
                 'route_color' => $routeColor, // green, yellow, red
@@ -307,17 +208,14 @@ class ApiController
      */
     public function getTripEta(int $tripId): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin']);
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
         $state = $this->getFleetState();
 
-        $databaseTrip = $this->findDatabaseTripByApiId($tripId);
-        $trip = $databaseTrip ? $this->ensureDatabaseTripCoordinates($databaseTrip) : null;
-        if (!$trip) {
-            foreach ($state['trips'] as $t) {
-                if ((int)$t['id'] === $tripId) {
-                    $trip = $t;
-                    break;
-                }
+        $trip = null;
+        foreach ($state['trips'] as $t) {
+            if ((int)$t['id'] === $tripId) {
+                $trip = $t;
+                break;
             }
         }
 
@@ -326,9 +224,7 @@ class ApiController
             return;
         }
 
-        $loc = $databaseTrip
-            ? $this->getDatabaseTripLocation($databaseTrip, $trip)
-            : ($state['locations'][$trip['vehicle_id']] ?? null);
+        $loc = $state['locations'][$trip['vehicle_id']] ?? null;
         $eta = $this->computeEtaDetails($trip, $loc);
 
         $this->jsonResponse([
@@ -545,69 +441,17 @@ class ApiController
         }
 
         $this->saveFleetState($state);
-        $databaseTracking = $this->persistDatabaseLocation($vehicleId, $latitude, $longitude, $speed, $fuelLevel);
 
         $this->jsonResponse([
             'success' => true,
             'message' => 'Location updated successfully',
             'arrival_monitoring' => [
-                'arrival_detected' => $databaseTracking['arrival_detected'] ?? $arrivalDetected,
-                'trip_status' => $databaseTracking['trip_status'] ?? ($trip ? ($arrivalDetected ? 'Completed' : $trip['status']) : 'No active trip'),
+                'arrival_detected' => $arrivalDetected,
+                'trip_status' => $trip ? ($arrivalDetected ? 'Completed' : $trip['status']) : 'No active trip',
             ],
             'location' => $locRecord,
             'new_notifications' => $notificationsCreated,
         ]);
-    }
-
-    private function persistDatabaseLocation(int $vehicleId, float $latitude, float $longitude, float $speed, ?float $fuelLevel): ?array
-    {
-        $vehicle = Vehicle::query()->find($vehicleId);
-        if (!$vehicle) {
-            return null;
-        }
-
-        $trip = $this->findDatabaseActiveTripForVehicle($vehicleId);
-        if ($trip && !$this->hasCoordinates($trip->dest_lat, $trip->dest_lng)) {
-            try {
-                $this->ensureDatabaseTripCoordinates($trip);
-                $trip->refresh();
-            } catch (\RuntimeException) {
-            }
-        }
-
-        return DB::transaction(function () use ($vehicleId, $latitude, $longitude, $speed, $fuelLevel, $vehicle, $trip): ?array {
-            LocationLog::query()->create([
-                'vehicle_id' => $vehicleId,
-                'latitude' => $latitude,
-                'longitude' => $longitude,
-                'speed' => $speed,
-                'fuel_level' => $fuelLevel,
-                'timestamp' => now(),
-            ]);
-
-            if (!$trip) {
-                return null;
-            }
-
-            if (!$this->hasCoordinates($trip->dest_lat, $trip->dest_lng)) {
-                return ['arrival_detected' => false, 'trip_status' => $trip->status];
-            }
-
-            if ($this->haversineDistance($latitude, $longitude, (float)$trip->dest_lat, (float)$trip->dest_lng) > 0.05) {
-                return ['arrival_detected' => false, 'trip_status' => $trip->status];
-            }
-
-            $departureTime = $trip->departure_time?->getTimestamp() ?? time();
-            $trip->update([
-                'status' => 'Completed',
-                'actual_arrival' => now(),
-                'total_duration' => max(1, (int)round((time() - $departureTime) / 60)),
-            ]);
-            $trip->dispatch()->update(['status' => 'Completed']);
-            $vehicle->update(['status' => 'Active']);
-
-            return ['arrival_detected' => true, 'trip_status' => 'Completed'];
-        });
     }
 
     /**
@@ -615,7 +459,7 @@ class ApiController
      */
     public function getDashboardAnalytics(): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin']);
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
         $state = $this->getFleetState();
 
         $activeTrips = 0;
@@ -661,7 +505,7 @@ class ApiController
      */
     public function getNotifications(): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin']);
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
         $state = $this->getFleetState();
 
         $this->jsonResponse([
@@ -830,7 +674,11 @@ class ApiController
             throw new \RuntimeException('OpenRouteService API key is missing (OPENROUTESERVICE_API_KEY).');
         }
 
-        $requestBody = [
+        if (!function_exists('curl_init')) {
+            throw new \RuntimeException('OpenRouteService routing requires the PHP cURL extension.');
+        }
+
+        $requestBody = json_encode([
             'coordinates' => [
                 [$startLng, $startLat],
                 [$destLng, $destLat],
@@ -838,30 +686,56 @@ class ApiController
             'alternative_routes' => [
                 'target_count' => 3,
             ],
-        ];
-        $response = Http::withHeaders([
-            'Authorization' => $apiKey,
-            'Accept' => 'application/json',
-        ])->timeout(30)->post('https://api.heigit.org/openrouteservice/v2/directions/driving-car', $requestBody);
-        $responseData = $response->json();
-
-        if (!$response->successful()) {
-            $apiError = is_array($responseData)
-                ? ($responseData['error']['message'] ?? $responseData['message'] ?? 'No details provided.')
-                : 'No details provided.';
-            throw new \RuntimeException("OpenRouteService returned HTTP {$response->status()}: {$apiError}");
+        ]);
+        if ($requestBody === false) {
+            throw new \RuntimeException('Unable to encode the OpenRouteService routing request.');
         }
 
-        if (!is_array($responseData)) {
+        $curl = curl_init('https://api.heigit.org/openrouteservice/v2/directions/driving-car');
+        if ($curl === false) {
+            throw new \RuntimeException('Unable to initialize the OpenRouteService HTTP request.');
+        }
+
+        curl_setopt_array($curl, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $requestBody,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: ' . $apiKey,
+                'Content-Type: application/json',
+                'Accept: application/json',
+            ],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 30,
+        ]);
+
+        $responseBody = curl_exec($curl);
+        $curlError = curl_error($curl);
+        $httpStatus = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+
+        if ($responseBody === false) {
+            throw new \RuntimeException('OpenRouteService HTTP request failed: ' . $curlError);
+        }
+
+        $response = json_decode($responseBody, true);
+        if ($httpStatus < 200 || $httpStatus >= 300) {
+            $apiError = is_array($response)
+                ? ($response['error']['message'] ?? $response['message'] ?? 'No details provided.')
+                : 'No details provided.';
+            throw new \RuntimeException("OpenRouteService returned HTTP {$httpStatus}: {$apiError}");
+        }
+
+        if (!is_array($response)) {
             throw new \RuntimeException('OpenRouteService returned an invalid JSON response.');
         }
 
-        if (isset($responseData['error'])) {
-            $apiError = $responseData['error']['message'] ?? $responseData['message'] ?? 'No details provided.';
+        if (isset($response['error'])) {
+            $apiError = $response['error']['message'] ?? $response['message'] ?? 'No details provided.';
             throw new \RuntimeException('OpenRouteService returned an API error: ' . $apiError);
         }
 
-        return $responseData;
+        return $response;
     }
 
     private function generateRouteWaypoints(array $trip, array $loc, ?array $routeResponse = null): array
@@ -1026,127 +900,6 @@ class ApiController
             }
         }
         return null;
-    }
-
-    private function findDatabaseActiveTripForVehicle(int $vehicleId): ?TripRecord
-    {
-        return TripRecord::query()
-            ->with(['vehicle', 'driver'])
-            ->where('vehicle_id', $vehicleId)
-            ->where('status', '!=', 'Completed')
-            ->orderByDesc('departure_time')
-            ->orderByDesc('id')
-            ->first();
-    }
-
-    private function findDatabaseTripByApiId(int $apiTripId): ?TripRecord
-    {
-        if ($apiTripId < self::DATABASE_TRIP_ID_OFFSET) {
-            return null;
-        }
-
-        return TripRecord::query()
-            ->with(['vehicle', 'driver'])
-            ->find($apiTripId - self::DATABASE_TRIP_ID_OFFSET);
-    }
-
-    private function databaseTripToArray(TripRecord $trip): array
-    {
-        $data = $trip->toArray();
-        $data['id'] = self::DATABASE_TRIP_ID_OFFSET + (int)$trip->id;
-        $data['trip_record_id'] = (int)$trip->id;
-        return $data;
-    }
-
-    private function getDatabaseTripLocation(TripRecord $trip, array $tripData): array
-    {
-        $location = LocationLog::query()
-            ->where('vehicle_id', $trip->vehicle_id)
-            ->orderByDesc('timestamp')
-            ->orderByDesc('id')
-            ->first();
-
-        return [
-            'latitude' => (float)($location->latitude ?? $tripData['origin_lat'] ?? 14.5995),
-            'longitude' => (float)($location->longitude ?? $tripData['origin_lng'] ?? 120.9842),
-            'speed' => (float)($location->speed ?? 45.0),
-            'fuel_level' => (float)($location->fuel_level ?? $trip->vehicle?->fuel_level ?? 0),
-            'timestamp' => $location->timestamp ?? date('Y-m-d H:i:s'),
-        ];
-    }
-
-    private function getDatabaseVehicleLocation(Vehicle $vehicle): array
-    {
-        $location = LocationLog::query()
-            ->where('vehicle_id', $vehicle->id)
-            ->orderByDesc('timestamp')
-            ->orderByDesc('id')
-            ->first();
-
-        return [
-            'latitude' => (float)($location->latitude ?? 14.5995),
-            'longitude' => (float)($location->longitude ?? 120.9842),
-            'speed' => (float)($location->speed ?? 0),
-            'fuel_level' => (float)($location->fuel_level ?? $vehicle->fuel_level ?? 0),
-            'timestamp' => $location->timestamp ?? date('Y-m-d H:i:s'),
-        ];
-    }
-
-    private function ensureDatabaseTripCoordinates(TripRecord $trip): array
-    {
-        $coordinates = [];
-        foreach (['origin' => 'origin', 'dest' => 'destination'] as $prefix => $addressField) {
-            $latitudeField = $prefix . '_lat';
-            $longitudeField = $prefix . '_lng';
-            if ($this->hasCoordinates($trip->{$latitudeField}, $trip->{$longitudeField})) {
-                continue;
-            }
-
-            [$latitude, $longitude] = $this->geocodeAddress((string)$trip->{$addressField});
-            $coordinates[$latitudeField] = $latitude;
-            $coordinates[$longitudeField] = $longitude;
-        }
-
-        if ($coordinates !== []) {
-            $trip->forceFill($coordinates)->save();
-            $trip->dispatch()->update($coordinates);
-            $trip->refresh();
-        }
-
-        return $this->databaseTripToArray($trip);
-    }
-
-    private function hasCoordinates(mixed $latitude, mixed $longitude): bool
-    {
-        return is_numeric($latitude) && is_numeric($longitude) &&
-            (float)$latitude >= -90 && (float)$latitude <= 90 &&
-            (float)$longitude >= -180 && (float)$longitude <= 180;
-    }
-
-    private function geocodeAddress(string $address): array
-    {
-        $apiKey = getenv('OPENROUTESERVICE_API_KEY');
-        if ($apiKey === false || trim($apiKey) === '') {
-            throw new \RuntimeException('OpenRouteService API key is missing (OPENROUTESERVICE_API_KEY).');
-        }
-        if (trim($address) === '') {
-            throw new \RuntimeException('A trip origin and destination are required to calculate a route.');
-        }
-        $response = Http::timeout(30)->get('https://api.openrouteservice.org/geocode/search', [
-            'api_key' => $apiKey,
-            'text' => $address,
-            'size' => 1,
-        ]);
-        $responseData = $response->json();
-        $coordinates = is_array($responseData)
-            ? ($responseData['features'][0]['geometry']['coordinates'] ?? null)
-            : null;
-        if (!$response->successful() || !is_array($coordinates) ||
-            !isset($coordinates[0], $coordinates[1]) || !$this->hasCoordinates($coordinates[1], $coordinates[0])) {
-            throw new \RuntimeException('OpenRouteService could not locate the trip address: ' . $address);
-        }
-
-        return [(float)$coordinates[1], (float)$coordinates[0]];
     }
 
     private function ensureStorage(): void
@@ -1324,7 +1077,7 @@ class ApiController
      */
     public function getDriverDashboard(): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin']);
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
         $drivers = $this->buildDriverDataset();
 
         $scores    = array_column($drivers, 'score');
@@ -1357,7 +1110,7 @@ class ApiController
      */
     public function getDriverRankings(): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin']);
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
         $period = $_GET['period'] ?? 'monthly';
         $type   = $_GET['type']   ?? 'top';
         $limit  = (int)($_GET['limit'] ?? 10);
@@ -1383,7 +1136,7 @@ class ApiController
      */
     public function getDriverPerformance(int $driverId): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin']);
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
         $drivers = $this->buildDriverDataset();
 
         $driver = null;
@@ -1415,7 +1168,7 @@ class ApiController
      */
     public function getDriverAnalytics(): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin']);
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
         $drivers = $this->buildDriverDataset();
 
         $fuelRanking = $drivers;
@@ -1447,7 +1200,7 @@ class ApiController
      */
     public function getDriverReports(): void
     {
-        $this->authorizeRole(['Dispatcher', 'Logistics Officer', 'Admin']);
+        $this->authorizeRole(['Dispatcher', 'Logistics Officer', 'Admin', 'User']);
         $type   = $_GET['type']   ?? 'monthly';
         $format = $_GET['format'] ?? 'json';
         $drivers = $this->buildDriverDataset();

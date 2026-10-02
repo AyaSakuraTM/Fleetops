@@ -42,6 +42,7 @@ class PageController extends Controller
 
         $dashboard = [
             'page' => $page,
+            'isAdmin' => $user->role === 'Admin',
             'title' => $titles[$page],
             'basePath' => '',
             'user' => [
@@ -93,7 +94,7 @@ class PageController extends Controller
             'users' => $page === 'usermanagement'
                 ? User::orderBy('name')->get(['id', 'name', 'email', 'role', 'status'])->all()
                 : [],
-            'userRoles' => ['Admin', 'Manager', 'Dispatcher', 'Accountant', 'Staff'],
+            'userRoles' => ['Admin', 'User'],
             'vehicleOptions' => Vehicle::orderBy('plate_number')->get(['id', 'name', 'type', 'plate_number', 'fuel_level'])->all(),
             'driverOptions' => Driver::with('user:id,name')->orderBy('name')->get(['id', 'user_id', 'name'])->all(),
             'fuelLogs' => $page === 'fuel-logs'

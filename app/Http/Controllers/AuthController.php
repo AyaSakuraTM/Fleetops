@@ -253,7 +253,7 @@ class AuthController extends Controller
         $user = new User([
             'name' => $data['name'],
             'email' => strtolower($data['email']),
-            'role' => 'Staff',
+            'role' => 'User',
             'status' => 'active',
         ]);
         $user->setPassword($data['password']);
