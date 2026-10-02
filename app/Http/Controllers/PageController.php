@@ -59,6 +59,7 @@ class PageController extends Controller
                 ['title' => 'Available Dispatches', 'value' => $pendingReservationCount, 'meta' => 'Pending reservations', 'positive' => true, 'currency' => false],
                 ['title' => 'Transport Costs This Month', 'value' => $finance['totals']['total_this_month'], 'meta' => 'Fuel + maintenance, live', 'positive' => true, 'currency' => true, 'currency_symbol' => 'PHP '],
             ],
+            'vehicleAvailability' => $page === 'dashboard' ? $this->buildVehicleAvailability() : [],
             'reservations' => DB::table('reservations')
                 ->orderByDesc($reservationDateColumn)
                 ->limit(5)
@@ -156,36 +157,38 @@ class PageController extends Controller
                 ->get();
             $dashboard['availableVehicles'] = DB::table('vehicles')
                 ->whereRaw('LOWER(status) = ?', ['active'])
-                ->whereNotExists(function ($query): void {
-                    $query->selectRaw('1')
-                        ->from('dispatches')
-                        ->whereColumn('dispatches.vehicle_id', 'vehicles.id')
-                        ->whereIn('dispatches.status', ['Scheduled', 'Active']);
-                })
                 ->orderBy('plate_number')
-                ->get(['id', 'vehicle_code', 'plate_number', 'type']);
-
-            $activeDrivers = DB::table('drivers')
+                ->get();
+            $dashboard['availableDrivers'] = DB::table('drivers')
                 ->join('users', 'drivers.user_id', '=', 'users.id')
                 ->whereRaw('LOWER(drivers.status) = ?', ['active'])
                 ->orderBy('users.name')
-                ->select([
-                    'drivers.id',
-                    'drivers.employee_id',
-                    DB::raw('COALESCE(drivers.name, users.name) as driver_name'),
-                ]);
-            $dashboard['reservationDrivers'] = (clone $activeDrivers)->get();
-            $dashboard['availableDrivers'] = (clone $activeDrivers)
-                ->whereNotExists(function ($query): void {
-                    $query->selectRaw('1')
-                        ->from('dispatches')
-                        ->whereColumn('dispatches.driver_id', 'drivers.id')
-                        ->whereIn('dispatches.status', ['Scheduled', 'Active']);
-                })
-                ->get();
+                ->get(['drivers.id', 'users.name as driver_name']);
         }
 
         return view('layout', compact('dashboard'));
+    }
+
+    private function buildVehicleAvailability(): array
+    {
+        $counts = ['Available' => 0, 'Booked' => 0, 'Maintenance' => 0, 'Delayed' => 0, 'Unavailable' => 0];
+        $statuses = DB::table('vehicles')
+            ->selectRaw('LOWER(TRIM(status)) as vehicle_status, COUNT(*) as vehicle_count')
+            ->groupByRaw('LOWER(TRIM(status))')
+            ->get();
+
+        foreach ($statuses as $status) {
+            $category = match ($status->vehicle_status) {
+                'active', 'available' => 'Available',
+                'reserved', 'booked', 'in transit' => 'Booked',
+                'maintenance' => 'Maintenance',
+                'delayed' => 'Delayed',
+                default => 'Unavailable',
+            };
+            $counts[$category] += (int) $status->vehicle_count;
+        }
+
+        return ['counts' => $counts, 'total' => array_sum($counts)];
     }
 
     private function buildFinanceData(): array
