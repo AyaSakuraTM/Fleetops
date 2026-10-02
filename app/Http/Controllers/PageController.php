@@ -94,7 +94,7 @@ class PageController extends Controller
             'users' => $page === 'usermanagement'
                 ? User::orderBy('name')->get(['id', 'name', 'email', 'role', 'status'])->all()
                 : [],
-            'userRoles' => ['Admin', 'User'],
+            'userRoles' => ['User', 'Admin'],
             'vehicleOptions' => Vehicle::orderBy('plate_number')->get(['id', 'name', 'type', 'plate_number', 'fuel_level'])->all(),
             'driverOptions' => Driver::with('user:id,name')->orderBy('name')->get(['id', 'user_id', 'name'])->all(),
             'fuelLogs' => $page === 'fuel-logs'
