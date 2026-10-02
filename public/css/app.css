@@ -35,6 +35,9 @@
   --accent: #4361ee;
   --accent-light: rgba(67, 97, 238, 0.15);
 }
+[data-theme="dark"] .hero-card {
+  background: linear-gradient(90deg, #132035 0%, #0e1c30 100%);
+}
 [data-theme="dark"] .stat-card,
 [data-theme="dark"] .panel,
 [data-theme="dark"] .search-bar,
@@ -326,8 +329,11 @@ button, input { font: inherit; }
 .profile-pill p { color: var(--muted); font-size: 0.8rem; }
 .dropdown-item { display: flex; align-items: center; gap: 10px; padding: 14px 16px; color: var(--text); text-decoration: none; transition: all 0.15s ease; font-size: 14px; font-weight: 500; white-space: nowrap; }
 .dropdown-item:hover { background-color: #f9fafb; }
-.page-title { margin: 0 0 20px; color: var(--text); font-size: 1.8rem; line-height: 1.2; }
+.hero-card { background: linear-gradient(90deg, #ffffff 0%, #f7f9fc 100%); border-radius: 24px; box-shadow: var(--shadow); padding: 24px 28px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
 .eyebrow { text-transform: uppercase; letter-spacing: 0.16em; color: var(--accent); font-size: 0.74rem; font-weight: 700; margin-bottom: 6px; }
+.hero-card h1 { margin: 0 0 6px; font-size: 1.8rem; }
+.hero-copy { margin: 0; color: var(--muted); }
+.hero-badge { padding: 10px 14px; border-radius: 999px; background: var(--accent-light); color: var(--accent); font-weight: 600; }
 .stats-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
 .stat-card { background: var(--surface); border-radius: 20px; padding: 18px 18px 16px; box-shadow: var(--shadow); }
 .stat-heading { color: var(--muted); font-size: 0.92rem; margin-bottom: 8px; }
@@ -346,7 +352,7 @@ button, input { font: inherit; }
 .availability-layout { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 16px; align-items: center; }
 .chart-card { display: flex; align-items: center; gap: 16px; }
 .pie-chart { width: 176px; height: 176px; border-radius: 50%; background: conic-gradient(var(--teal) 0 35%, var(--orange) 35% 60%, var(--blue) 60% 75%, var(--gray) 75% 90%, var(--gold) 90% 100%); position: relative; box-shadow: inset 0 0 0 18px rgba(255,255,255,0.84); }
-.pie-chart::after { content: "256"; position: absolute; inset: 44px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; font-weight: 800; font-size: 1.25rem; }
+.pie-chart::after { content: attr(data-total); position: absolute; inset: 44px; border-radius: 50%; background: var(--surface); display: grid; place-items: center; font-weight: 800; font-size: 1.25rem; }
 .chart-caption { display: flex; flex-direction: column; gap: 8px; color: var(--muted); font-size: 0.92rem; }
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
 .dot.teal { background: var(--teal); }
@@ -433,6 +439,11 @@ th { color: var(--muted); font-weight: 600; }
   .topbar-actions .profile-pill {
     flex-shrink: 0;
   }
+  .hero-card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 20px;
+  }
   .availability-layout {
     grid-template-columns: 1fr;
   }
@@ -470,6 +481,11 @@ th { color: var(--muted); font-weight: 600; }
   .topbar-actions .profile-pill {
     flex-shrink: 0;
   }
+  .hero-card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 20px;
+  }
   .availability-layout {
     grid-template-columns: 1fr;
   }
@@ -505,6 +521,9 @@ th { color: var(--muted); font-weight: 600; }
     width: 38px;
     height: 38px;
   }
+  .hero-card h1 {
+    font-size: 1.5rem;
+  }
   .search-bar {
     width: 100%;
     justify-content: flex-start;
@@ -512,6 +531,9 @@ th { color: var(--muted); font-weight: 600; }
   .icon-button {
     width: 38px;
     height: 38px;
+  }
+  .hero-card h1 {
+    font-size: 1.5rem;
   }
   .search-bar {
     padding: 10px 14px;
@@ -858,276 +880,6 @@ th { color: var(--muted); font-weight: 600; }
   .integration-grid { grid-template-columns: 1fr; }
   .tracking-control-bar { flex-direction: column; align-items: stretch; }
   .control-right { flex-direction: column; }
-}
-
-/* Keep grid and table contents inside their available layout tracks. */
-.app-shell,
-.main-panel,
-.content-grid,
-.content-column,
-.panel,
-.table-wrapper,
-.map-container-grid,
-.map-container-grid > *,
-.tracking-module-wrapper {
-  min-width: 0;
-  max-width: 100%;
-}
-.table-wrapper {
-  width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-}
-.content-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); }
-.quick-item { min-width: 0; overflow-wrap: anywhere; }
-.list-item > :nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
-
-@media (max-width: 768px) {
-  .main-panel { width: 100%; }
-  .content-grid { grid-template-columns: minmax(0, 1fr); }
-  .content-column,
-  .panel,
-  .stats-grid,
-  .availability-layout,
-  .chart-card,
-  .legend-table,
-  .quick-grid,
-  .quick-item {
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-  }
-  .table-wrapper { max-width: 100%; }
-  .tracking-analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .map-container-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .map-header-tools {
-    position: relative;
-    inset: auto;
-    z-index: 2;
-    align-items: stretch;
-    flex-direction: column;
-    gap: 8px;
-    padding: 10px;
-  }
-  .map-filters,
-  .map-action-buttons { max-width: 100%; flex-wrap: wrap; }
-  .map-filters { justify-content: center; }
-  .map-btn { flex: 1 1 auto; }
-  .leaflet-map-canvas { width: 100%; max-width: 100%; height: 360px; }
-  .map-route-legend {
-    right: 8px;
-    bottom: 8px;
-    left: 8px;
-    max-width: calc(100% - 16px);
-    flex-wrap: wrap;
-    gap: 6px 10px;
-    padding: 8px;
-  }
-  .legend-item { min-width: 0; }
-  .map-view-card,
-  .vehicle-info-sidebar,
-  .panel-card,
-  .dispatch-info { min-width: 0; max-width: 100%; }
-  .dispatch-item { min-width: 0; }
-  .dispatch-info h4,
-  .dispatch-info p,
-  .info-val,
-  .info-val-sm,
-  .info-val-highlight { overflow-wrap: anywhere; }
-  .eta-metrics-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-  .eta-metrics-row h4 { overflow-wrap: anywhere; }
-  .drawer-panel {
-    right: 0;
-    width: min(360px, 100vw);
-    max-width: 100vw;
-    transform: translateX(100%);
-    transition: transform 0.3s ease;
-  }
-  .drawer-panel.open { right: 0; transform: translateX(0); }
-}
-
-@media (max-width: 480px) {
-  .stats-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-  .stat-card { width: 100%; max-width: 100%; }
-  .page-title { font-size: 1.5rem; }
-  .page-title,
-  .panel-header h3 { overflow-wrap: anywhere; }
-  .panel { padding: 14px 12px 16px; border-radius: 16px; }
-  .panel-header { align-items: flex-start; gap: 8px; flex-wrap: wrap; }
-  .panel-header > :first-child { min-width: 0; }
-  .availability-layout { grid-template-columns: minmax(0, 1fr); }
-  .chart-card { flex-direction: column; align-items: center; gap: 12px; }
-  .pie-chart {
-    width: min(176px, 52vw);
-    height: auto;
-    aspect-ratio: 1;
-    flex: 0 0 min(176px, 52vw);
-  }
-  .pie-chart::after { inset: 25%; }
-  .chart-caption {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 100%;
-    font-size: 0.8rem;
-  }
-  .legend-table { padding: 8px 10px; }
-  .quick-grid { grid-template-columns: minmax(0, 1fr); }
-  .quick-item { padding: 12px; border-radius: 10px; }
-  .tracking-analytics-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .analytics-card { min-width: 0; }
-  .tracking-control-bar { padding: 12px; }
-  .control-left { min-width: 0; flex-wrap: wrap; gap: 8px; }
-  .control-left h2 { font-size: 1.1rem; overflow-wrap: anywhere; }
-  .live-pulse-badge { max-width: 100%; white-space: normal; }
-  .control-right { flex-direction: row; flex-wrap: wrap; }
-  .leaflet-map-canvas { height: 300px; }
-  .map-filters { justify-content: flex-start; }
-  .filter-pill { padding: 6px 8px; font-size: 0.74rem; }
-  .map-btn { padding: 7px 9px; font-size: 0.74rem; }
-  .map-route-legend { font-size: 0.68rem; }
-  .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .eta-live-card { padding: 12px; }
-  .eta-header { flex-wrap: wrap; gap: 6px; }
-  .eta-metrics-row h4 { font-size: 0.9rem; }
-  .gps-status-header { flex-wrap: wrap; gap: 8px; }
-  .modal-backdrop { padding: 12px; }
-  .modal-card { max-width: 100%; max-height: calc(100dvh - 24px); }
-}
-
-@media (max-width: 380px) {
-  .leaflet-map-canvas { height: 270px; }
-  .info-grid { grid-template-columns: minmax(0, 1fr); }
-  .info-item.full { grid-column: auto; }
-  .eta-metrics-row { grid-template-columns: minmax(0, 1fr); }
-  .map-route-legend { gap: 4px 8px; }
-}
-
-@media (max-width: 768px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    margin-bottom: 12px;
-  }
-  .stat-card {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    padding: 13px 14px 12px;
-    border-radius: 16px;
-  }
-  .stat-heading {
-    margin-bottom: 5px;
-    font-size: 0.82rem;
-    line-height: 1.25;
-    overflow-wrap: anywhere;
-  }
-  .stat-value {
-    margin-bottom: 5px;
-    font-size: 1.45rem;
-    line-height: 1.1;
-    overflow-wrap: anywhere;
-  }
-  .stat-meta {
-    font-size: 0.76rem;
-    line-height: 1.25;
-    overflow-wrap: anywhere;
-  }
-  .stats-grid .stat-card:last-child {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    column-gap: 12px;
-  }
-  .stats-grid .stat-card:last-child .stat-heading,
-  .stats-grid .stat-card:last-child .stat-meta { grid-column: 1; }
-  .stats-grid .stat-card:last-child .stat-heading { grid-row: 1; }
-  .stats-grid .stat-card:last-child .stat-meta { grid-row: 2; }
-  .stats-grid .stat-card:last-child .stat-value {
-    grid-column: 2;
-    grid-row: 1 / 3;
-    margin: 0;
-    text-align: right;
-    white-space: nowrap;
-  }
-}
-
-@media (max-width: 480px) {
-  .stats-grid { gap: 8px; margin-bottom: 10px; }
-  .stat-card { padding: 11px 12px 10px; border-radius: 14px; }
-  .stat-heading { margin-bottom: 4px; font-size: 0.78rem; }
-  .stat-value { margin-bottom: 4px; font-size: 1.32rem; }
-  .stat-meta { font-size: 0.72rem; }
-  .stats-grid .stat-card:last-child { column-gap: 8px; }
-  .stats-grid .stat-card:last-child .stat-value { font-size: 1.25rem; }
-}
-
-@media (min-width: 961px) and (max-width: 1200px) {
-  .map-container-grid { grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr); gap: 14px; }
-  .leaflet-map-canvas { height: min(520px, 54vw); min-height: 400px; }
-}
-
-@media (max-width: 768px) {
-  .tracking-analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .analytics-card { min-width: 0; padding: 12px 10px; gap: 8px; border-radius: 14px; }
-  .analytics-card > div:last-child { min-width: 0; }
-  .analytics-label,
-  .analytics-sub { overflow-wrap: anywhere; }
-  .tracking-control-bar { gap: 8px; padding: 12px 14px; border-radius: 14px; }
-  .control-left { min-width: 0; gap: 8px; flex-wrap: wrap; }
-  .control-left h2 { min-width: 0; font-size: 1.12rem; line-height: 1.2; }
-  .live-pulse-badge { min-height: 36px; padding: 5px 9px; font-size: 0.74rem; }
-  .map-header-tools {
-    position: relative;
-    inset: auto;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 6px;
-    padding: 8px;
-  }
-  .map-filters { flex: 1 1 100%; min-width: 0; flex-wrap: wrap; gap: 4px; padding: 4px; }
-  .filter-pill { min-height: 44px; flex: 1 1 auto; padding: 8px 9px; line-height: 1.15; }
-  .map-action-buttons { flex: 1 1 100%; justify-content: flex-end; gap: 6px; }
-  .map-btn { min-height: 44px; padding: 8px 11px; }
-  .leaflet-map-canvas { height: 360px; }
-  .vehicle-info-sidebar { gap: 10px; }
-  .panel-card { padding: 14px; border-radius: 16px; }
-  .card-empty-state { padding: 22px 8px; }
-  .divider { margin: 10px 0; }
-  .info-grid { gap: 8px; }
-  .info-label { font-size: 0.68rem; }
-  .eta-live-card { margin-top: 10px; padding: 12px; }
-  .eta-metrics-row { gap: 6px; }
-  .eta-metrics-row h4 { font-size: 0.9rem; }
-}
-
-@media (min-width: 481px) and (max-width: 768px) {
-  .map-filters { flex: 1 1 auto; }
-  .map-action-buttons { flex: 0 0 auto; }
-}
-
-@media (max-width: 480px) {
-  .tracking-analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .analytics-card { padding: 10px 9px; gap: 7px; }
-  .analytics-icon { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 10px; font-size: 1rem; }
-  .analytics-label { font-size: 0.66rem; line-height: 1.2; letter-spacing: 0.03em; }
-  .analytics-value { font-size: 1.18rem; line-height: 1.1; }
-  .analytics-sub { font-size: 0.66rem; line-height: 1.2; }
-  .tracking-control-bar { padding: 10px 12px; }
-  .control-left h2 { font-size: 1.02rem; }
-  .live-pulse-badge { min-height: 34px; font-size: 0.7rem; }
-  .map-header-tools { padding: 6px; }
-  .filter-pill { padding: 7px 6px; font-size: 0.72rem; }
-  .map-btn { padding: 7px 9px; font-size: 0.74rem; }
-  .leaflet-map-canvas { height: clamp(320px, 88vw, 420px); }
-  .panel-card { padding: 12px; }
-  .panel-header-sub { gap: 8px; }
-  .panel-header-sub h3 { font-size: 0.92rem; }
-  .eta-metrics-row h4 { font-size: 0.82rem; }
 }
 
 /* ════════════════════════════════════════════════
