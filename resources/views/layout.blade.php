@@ -434,6 +434,7 @@
         .search-bar {
           width: 100% !important;
           min-width: 0 !important;
+          min-height: 44px;
           padding: 10px !important;
           gap: 7px !important;
           box-sizing: border-box;
@@ -450,6 +451,12 @@
         .panel { padding: 16px 16px 18px !important; border-radius: 16px !important; }
         .table-wrapper { overflow-x: auto !important; }
         body { overflow-x: hidden; }
+      }
+      @media (max-width: 360px) {
+        .topbar { grid-template-rows: 44px auto; row-gap: 6px !important; }
+        .sidebar-toggle { grid-column: 1; grid-row: 1; }
+        .topbar-actions { grid-column: 3; grid-row: 1; }
+        .search-bar { grid-column: 1 / -1; grid-row: 2; }
       }
       /* Touch-friendly targets on coarse pointers */
       @media (pointer: coarse) {
