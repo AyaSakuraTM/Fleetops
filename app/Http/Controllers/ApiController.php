@@ -210,21 +210,30 @@ class ApiController
 
         // Keep route geometry fixed to the TripRecord endpoints while ETA follows live GPS.
         $routeResponse = $this->requestOpenRouteServiceRouteForTrip($trip, $loc);
+        $routeColor = $this->calculateRouteColor($trip, (float)$loc['speed']);
+        $eta = $this->computeEtaDetails($trip, $loc, $routeResponse);
         $originLocation = [
             'latitude' => (float)$trip['origin_lat'],
             'longitude' => (float)$trip['origin_lng'],
             'speed' => 0.0,
         ];
-        $dispatchRouteResponse = $this->requestOpenRouteServiceRouteForTrip($trip, null);
-        $waypoints = $this->generateRouteWaypoints($trip, $originLocation, $dispatchRouteResponse);
-        $alternativeRoutes = $this->buildAlternativeRoutes(
-            $dispatchRouteResponse,
-            $trip,
-            $originLocation,
-            $waypoints
-        );
-        $routeColor = $this->calculateRouteColor($trip, (float)$loc['speed']);
-        $eta = $this->computeEtaDetails($trip, $loc, $routeResponse);
+        $waypoints = [];
+        $alternativeRoutes = [];
+        try {
+            $dispatchRouteResponse = $this->requestOpenRouteServiceRouteForTrip($trip, null);
+            $waypoints = $this->generateRouteWaypoints($trip, $originLocation, $dispatchRouteResponse);
+            $alternativeRoutes = $this->buildAlternativeRoutes(
+                $dispatchRouteResponse,
+                $trip,
+                $originLocation,
+                $waypoints
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('Unable to generate TripRecord A-to-B route.', [
+                'trip_record_id' => $trip['id'],
+                'exception' => $exception->getMessage(),
+            ]);
+        }
 
         $trafficDelays = [];
         if ($routeColor === 'yellow') {
