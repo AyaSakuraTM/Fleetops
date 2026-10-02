@@ -38,11 +38,34 @@ class ApiController
      */
     public function getLiveVehicles(): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
+        $actor = $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User', 'Staff']);
         $state = $this->getFleetState();
+        $authorizedVehicleIds = null;
+
+        if ($actor['role'] !== 'Admin') {
+            $driverIds = DB::table('drivers')
+                ->where('user_id', $actor['id'])
+                ->pluck('id');
+            $dispatchVehicleIds = DB::table('dispatches')
+                ->whereIn('driver_id', $driverIds)
+                ->whereRaw('LOWER(TRIM(status)) = ?', ['active'])
+                ->pluck('vehicle_id');
+            $tripVehicleIds = DB::table('trip_records')
+                ->whereIn('driver_id', $driverIds)
+                ->whereRaw('LOWER(TRIM(status)) <> ?', ['completed'])
+                ->pluck('vehicle_id');
+            $authorizedVehicleIds = $dispatchVehicleIds
+                ->merge($tripVehicleIds)
+                ->mapWithKeys(fn ($vehicleId) => [(int) $vehicleId => true])
+                ->all();
+        }
 
         $vehicles = [];
         foreach ($state['vehicles'] as $v) {
+            if ($authorizedVehicleIds !== null && !isset($authorizedVehicleIds[$v['id']])) {
+                continue;
+            }
+
             $trip = $this->findActiveTripForVehicle($state, $v['id']);
             $loc = $state['locations'][$v['id']] ?? null;
 
@@ -139,7 +162,7 @@ class ApiController
      */
     public function getTripRoute(int $tripId): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
+        $actor = $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User', 'Staff']);
         $state = $this->getFleetState();
 
         $trip = null;
@@ -151,6 +174,10 @@ class ApiController
         }
 
         if (!$trip) {
+            $this->jsonResponse(['success' => false, 'error' => 'Trip not found'], 404);
+            return;
+        }
+        if (!$this->actorCanAccessTrip($trip, $actor)) {
             $this->jsonResponse(['success' => false, 'error' => 'Trip not found'], 404);
             return;
         }
@@ -176,10 +203,22 @@ class ApiController
             ];
         }
 
-        // Use one current-position route response for primary geometry, alternatives, and ETA.
+        // Keep live-position geometry and ETA separate from dispatch-leg alternatives.
         $routeResponse = $this->requestOpenRouteServiceRouteForTrip($trip, $loc);
         $waypoints = $this->generateRouteWaypoints($trip, $loc, $routeResponse);
-        $alternativeRoutes = $this->buildAlternativeRoutes($routeResponse, $trip, $loc, $waypoints);
+        $originLocation = [
+            'latitude' => (float)$trip['origin_lat'],
+            'longitude' => (float)$trip['origin_lng'],
+            'speed' => 0.0,
+        ];
+        $dispatchRouteResponse = $this->requestOpenRouteServiceRouteForTrip($trip, null);
+        $dispatchWaypoints = $this->generateRouteWaypoints($trip, $originLocation, $dispatchRouteResponse);
+        $alternativeRoutes = $this->buildAlternativeRoutes(
+            $dispatchRouteResponse,
+            $trip,
+            $originLocation,
+            $dispatchWaypoints
+        );
         $routeColor = $this->calculateRouteColor($trip, (float)$loc['speed']);
         $eta = $this->computeEtaDetails($trip, $loc, $routeResponse);
 
@@ -229,7 +268,7 @@ class ApiController
      */
     public function getTripEta(int $tripId): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User']);
+        $actor = $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User', 'Staff']);
         $state = $this->getFleetState();
 
         $trip = null;
@@ -241,6 +280,10 @@ class ApiController
         }
 
         if (!$trip) {
+            $this->jsonResponse(['success' => false, 'error' => 'Trip not found'], 404);
+            return;
+        }
+        if (!$this->actorCanAccessTrip($trip, $actor)) {
             $this->jsonResponse(['success' => false, 'error' => 'Trip not found'], 404);
             return;
         }
@@ -267,7 +310,7 @@ class ApiController
      */
     public function startTrip(): void
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Admin']);
+        $actor = $this->authorizeRole(['Driver', 'Dispatcher', 'Admin']);
         $raw = file_get_contents('php://input');
         $data = json_decode($raw, true) ?: $_POST;
 
@@ -280,13 +323,18 @@ class ApiController
         $destLng = isset($data['dest_lng']) ? (float)$data['dest_lng'] : null;
         $driverId = isset($data['driver_id']) ? (int)$data['driver_id'] : 0;
 
+        if ($actor['role'] === 'Driver') {
+            $accountDriverId = (int)DB::table('drivers')->where('user_id', $actor['id'])->value('id');
+            if (!$accountDriverId || ($driverId && $driverId !== $accountDriverId)) {
+                $this->jsonResponse(['success' => false, 'error' => 'Driver account does not match the requested trip.'], 403);
+                return;
+            }
+            $driverId = $accountDriverId;
+        }
+
         $vehicle = $vehicleId ? DB::table('vehicles')->where('id', $vehicleId)->first() : null;
         if (!$vehicle) {
             $this->jsonResponse(['success' => false, 'error' => 'Vehicle not found.'], 404);
-            return;
-        }
-        if (!$origin || !$destination) {
-            $this->jsonResponse(['success' => false, 'error' => 'Origin and destination are required.'], 422);
             return;
         }
         if (!$driverId) {
@@ -296,6 +344,41 @@ class ApiController
         $driver = $driverId ? DB::table('drivers')->where('id', $driverId)->first() : null;
         if (!$driver) {
             $this->jsonResponse(['success' => false, 'error' => 'Driver not found for this vehicle.'], 422);
+            return;
+        }
+
+        $activeDispatch = DB::table('dispatches')
+            ->where('vehicle_id', $vehicleId)
+            ->whereRaw('LOWER(TRIM(status)) = ?', ['active'])
+            ->orderByDesc('id')
+            ->first();
+        if ($actor['role'] === 'Driver' && $activeDispatch && (int)$activeDispatch->driver_id !== $driverId) {
+            $this->jsonResponse(['success' => false, 'error' => 'Vehicle is assigned to a different driver.'], 403);
+            return;
+        }
+
+        $dispatchId = $activeDispatch && (int)$activeDispatch->driver_id === $driverId
+            ? (int)$activeDispatch->id
+            : null;
+        if ($dispatchId !== null) {
+            $existingTrip = DB::table('trip_records')
+                ->where('dispatch_id', $dispatchId)
+                ->whereRaw('LOWER(TRIM(status)) <> ?', ['completed'])
+                ->orderByDesc('id')
+                ->first();
+            if ($existingTrip) {
+                $this->jsonResponse([
+                    'success' => true,
+                    'message' => 'Tracking continued for the active dispatch.',
+                    'trip' => (array)$existingTrip,
+                    'tracking_interval_seconds' => 5,
+                ]);
+                return;
+            }
+        }
+
+        if (!$origin || !$destination) {
+            $this->jsonResponse(['success' => false, 'error' => 'Origin and destination are required.'], 422);
             return;
         }
 
@@ -313,7 +396,7 @@ class ApiController
 
         $now = date('Y-m-d H:i:s');
 
-        $tripId = DB::transaction(function () use ($vehicleId, $driverId, $origin, $destination, $originLat, $originLng, $destLat, $destLng, $now, $vehicle) {
+        $tripId = DB::transaction(function () use ($vehicleId, $driverId, $dispatchId, $origin, $destination, $originLat, $originLng, $destLat, $destLng, $now, $vehicle) {
             DB::table('vehicles')->where('id', $vehicleId)->update(['status' => 'Active', 'updated_at' => $now]);
 
             DB::table('location_logs')->insert([
@@ -333,6 +416,7 @@ class ApiController
                 ->update(['status' => 'Completed', 'actual_arrival' => $now, 'updated_at' => $now]);
 
             $tripId = DB::table('trip_records')->insertGetId([
+                'dispatch_id' => $dispatchId,
                 'vehicle_id' => $vehicleId,
                 'driver_id' => $driverId,
                 'origin' => $origin,
@@ -386,7 +470,7 @@ class ApiController
     public function updateLocation(): void
 
     {
-        $this->authorizeRole(['Driver', 'Dispatcher', 'Admin']);
+        $actor = $this->authorizeRole(['Driver', 'Dispatcher', 'Admin']);
         $raw = file_get_contents('php://input');
         $data = json_decode($raw, true) ?: $_POST;
 
@@ -400,6 +484,27 @@ class ApiController
         if (!$vehicle || $latitude === null || $longitude === null) {
             $this->jsonResponse(['success' => false, 'error' => 'Vehicle and coordinates are required.'], 422);
             return;
+        }
+
+        $tripModel = DB::table('trip_records')
+            ->where('vehicle_id', $vehicleId)
+            ->whereRaw('LOWER(TRIM(status)) <> ?', ['completed'])
+            ->orderByDesc('id')
+            ->first();
+
+        if ($actor['role'] === 'Driver') {
+            $accountDriverId = (int)DB::table('drivers')->where('user_id', $actor['id'])->value('id');
+            $activeDispatch = DB::table('dispatches')
+                ->where('vehicle_id', $vehicleId)
+                ->whereRaw('LOWER(TRIM(status)) = ?', ['active'])
+                ->orderByDesc('id')
+                ->first();
+            if (!$accountDriverId ||
+                ($tripModel && (int)$tripModel->driver_id !== $accountDriverId) ||
+                ($activeDispatch && (int)$activeDispatch->driver_id !== $accountDriverId)) {
+                $this->jsonResponse(['success' => false, 'error' => 'Vehicle is not assigned to this driver account.'], 403);
+                return;
+            }
         }
 
         $now = date('Y-m-d H:i:s');
@@ -429,11 +534,6 @@ class ApiController
             DB::table('vehicles')->where('id', $vehicleId)->update(['fuel_level' => $fuelLevel, 'updated_at' => $now]);
         }
 
-        $tripModel = DB::table('trip_records')
-            ->where('vehicle_id', $vehicleId)
-            ->where('status', '!=', 'Completed')
-            ->orderByDesc('id')
-            ->first();
         $trip = $tripModel ? (array) $tripModel : null;
         $notificationsCreated = [];
         $arrivalDetected = false;
@@ -988,6 +1088,14 @@ class ApiController
             }
         }
         return null;
+    }
+
+    private function actorCanAccessTrip(array $trip, array $actor): bool
+    {
+        return $actor['role'] === 'Admin' || DB::table('drivers')
+            ->where('id', $trip['driver_id'])
+            ->where('user_id', $actor['id'])
+            ->exists();
     }
 
     private function ensureStorage(): void

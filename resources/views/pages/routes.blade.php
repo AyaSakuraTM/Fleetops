@@ -68,6 +68,7 @@
     .dispatch-info { min-width: 0; }
     .dispatch-info h4, .dispatch-info p { overflow-wrap: anywhere; }
     .dispatch-trip-status { display: block; margin-top: 4px; color: var(--muted); font-size: 0.68rem; text-align: right; }
+    .map-header-tools { justify-content: flex-end; }
     @media (max-width: 420px) {
         .route-options { grid-template-columns: 1fr; }
     }
@@ -125,11 +126,6 @@
         <!-- Interactive Leaflet Map Box -->
         <div class="map-view-card">
             <div class="map-header-tools">
-                <div class="map-filters">
-                    <button class="filter-pill active" onclick="filterFleet('all')">All Vehicles (4)</button>
-                    <button class="filter-pill" onclick="filterFleet('Active')">Active (3)</button>
-                    <button class="filter-pill" onclick="filterFleet('Maintenance')">Maintenance (1)</button>
-                </div>
                 <div class="map-action-buttons">
                     <button class="map-btn" onclick="recenterMap()" title="Recenter Map">🎯 Recenter</button>
                     <button class="map-btn" onclick="toggleFullscreenMap()" title="Full Screen">⛶ Fullscreen</button>
@@ -177,6 +173,10 @@
                         <div class="info-item">
                             <span class="info-label">Employee ID</span>
                             <strong class="info-val" id="info-emp-id">—</strong>
+                        </div>
+                        <div class="info-item full">
+                            <span class="info-label">Trip Route</span>
+                            <strong class="info-val" id="info-trip-route">— → —</strong>
                         </div>
                         <div class="info-item">
                             <span class="info-label">Current Speed</span>
@@ -359,7 +359,7 @@
 
 <!-- Embedded JS Logic for Interactive Leaflet Map & API Integration -->
 <script>
-    const basePath = "<?= $dashboard['basePath'] ?>";
+    const apiBasePath = <?= json_encode(url('/api')) ?>;
     const activeDispatchesUrl = <?= json_encode(url('/dispatches/active')) ?>;
     let map = null;
     let vehicleMarkers = {};
@@ -378,9 +378,7 @@
     let refreshInterval = null;
     let gpsWatchId = null;
     let simulatedGpsInterval = null;
-    let currentStatusFilter = 'all';
     let currentSearchQuery = '';
-    let mapCenteredFromData = false;
 
     document.addEventListener('DOMContentLoaded', function () {
         initLeafletMap();
@@ -402,17 +400,18 @@
         }
     });
 
-    function vehicleMatchesSearch(v, query) {
+    function dispatchMatchesSearch(dispatch, query) {
         if (!query) return true;
-        return [v.dispatch_no, v.vehicle_code, v.plate_number, v.driver_name, v.employee_id, v.destination, v.origin, v.type]
+        return [dispatch.dispatch_no, dispatch.vehicle_code, dispatch.plate_number, dispatch.driver_name, dispatch.employee_id, dispatch.destination, dispatch.origin]
             .filter(Boolean)
             .some(field => String(field).toLowerCase().includes(query));
     }
 
-    function getFilteredFleet() {
-        return fleetData
-            .filter(v => currentStatusFilter === 'all' || v.status === currentStatusFilter)
-            .filter(v => vehicleMatchesSearch(v, currentSearchQuery));
+    function hasValidCoordinates(vehicle) {
+        return vehicle.latitude !== null && vehicle.latitude !== undefined && vehicle.latitude !== '' &&
+            vehicle.longitude !== null && vehicle.longitude !== undefined && vehicle.longitude !== '' &&
+            Number.isFinite(Number(vehicle.latitude)) && Number.isFinite(Number(vehicle.longitude)) &&
+            Math.abs(Number(vehicle.latitude)) <= 90 && Math.abs(Number(vehicle.longitude)) <= 180;
     }
 
     function applyFleetFilters() {
@@ -421,10 +420,9 @@
     }
 
     function initLeafletMap() {
-        // Do not center on fake data; the map re-centers on the selected real fleet location.
         map = L.map('fleet-map', {
-            center: [0, 0],
-            zoom: 2,
+            center: [12.8797, 121.7740],
+            zoom: 6,
             zoomControl: true
         });
 
@@ -456,7 +454,7 @@
     }
 
     function loadFleetData() {
-        fetch(basePath + '/api/vehicles/live')
+        fetch(apiBasePath + '/vehicles/live')
             .then(res => res.json())
             .then(data => {
                 if (data.success && data.vehicles) {
@@ -472,14 +470,6 @@
                     applyFleetFilters();
                     updateDashboardAnalytics();
                     loadNotifications();
-
-                    if (!mapCenteredFromData && !activeVehicleId) {
-                        const first = fleetData.find(v => Number.isFinite(Number(v.latitude)) && Number.isFinite(Number(v.longitude)) && v.latitude !== 0 && v.longitude !== 0);
-                        if (first) {
-                            map.setView([first.latitude, first.longitude], 12);
-                            mapCenteredFromData = true;
-                        }
-                    }
 
                     if (activeVehicleId) {
                         const activeV = fleetData.find(v => v.id === activeVehicleId);
@@ -505,8 +495,7 @@
 
         if (!selectedVehicle) return;
 
-        const latLng = [selectedVehicle.latitude, selectedVehicle.longitude];
-        if (!Number.isFinite(Number(selectedVehicle.latitude)) || !Number.isFinite(Number(selectedVehicle.longitude))) {
+        if (!hasValidCoordinates(selectedVehicle)) {
             // No live coordinates yet — leave the map centered, remove the marker if present.
             if (vehicleMarkers[selectedVehicle.id]) {
                 if (map.hasLayer(vehicleMarkers[selectedVehicle.id])) map.removeLayer(vehicleMarkers[selectedVehicle.id]);
@@ -514,6 +503,7 @@
             }
             return;
         }
+        const latLng = [Number(selectedVehicle.latitude), Number(selectedVehicle.longitude)];
         const icon = createTruckIcon(selectedVehicle.vehicle_code, selectedVehicle.status, selectedVehicle.speed, selectedVehicle.route_color);
 
         if (vehicleMarkers[selectedVehicle.id]) {
@@ -529,24 +519,27 @@
         }
     }
 
-    function selectVehicle(vehicleId) {
+    function selectVehicle(vehicleId, selectedDispatch = null) {
         const v = fleetData.find(item => item.id === vehicleId);
         if (!v) return;
 
+        const tripId = selectedDispatch
+            ? (selectedDispatch.trip_record_id ? Number(selectedDispatch.trip_record_id) : null)
+            : v.active_trip_id;
         activeVehicleId = vehicleId;
         renderActiveDispatches();
         clearRouteDisplay();
         renderFleetMarkers();
-        displayVehicleDetails(v);
-        if (v.active_trip_id) loadTripRoute(v.active_trip_id);
+        displayVehicleDetails(v, true, tripId, selectedDispatch);
+        if (tripId) loadTripRoute(tripId);
 
         // Center map on marker when live coordinates exist
-        if (Number.isFinite(Number(v.latitude)) && Number.isFinite(Number(v.longitude))) {
-            map.panTo([v.latitude, v.longitude], { animate: true });
+        if (hasValidCoordinates(v)) {
+            map.setView([Number(v.latitude), Number(v.longitude)], 12, { animate: true });
         }
     }
 
-    function displayVehicleDetails(v, updateEta = true) {
+    function displayVehicleDetails(v, updateEta = true, tripId = v.active_trip_id, selectedDispatch = null) {
         document.getElementById('empty-state').style.display = 'none';
         document.getElementById('active-vehicle-content').style.display = 'block';
 
@@ -560,15 +553,18 @@
 
         document.getElementById('info-driver').innerText = v.driver_name;
         document.getElementById('info-emp-id').innerText = v.employee_id;
+        const origin = selectedDispatch?.origin || v.origin;
+        const destination = selectedDispatch?.destination || v.destination;
+        document.getElementById('info-trip-route').innerText = `${origin || '—'} → ${destination || '—'}`;
         document.getElementById('info-speed').innerText = v.speed + ' km/h';
         
         document.getElementById('info-fuel-bar').style.width = v.fuel_level + '%';
         document.getElementById('info-fuel-val').innerText = v.fuel_level + '%';
 
-        document.getElementById('info-location').innerText = (Number.isFinite(Number(v.latitude)) && Number.isFinite(Number(v.longitude)))
-            ? `${Number(v.latitude).toFixed(4)}, ${Number(v.longitude).toFixed(4)} (${v.origin})`
-            : `No live GPS fix (${v.origin})`;
-        document.getElementById('info-destination').innerText = v.destination;
+        document.getElementById('info-location').innerText = hasValidCoordinates(v)
+            ? `${Number(v.latitude).toFixed(4)}, ${Number(v.longitude).toFixed(4)} (${origin || '—'})`
+            : `No live GPS fix (${origin || '—'})`;
+        document.getElementById('info-destination').innerText = destination || '—';
         document.getElementById('info-start-time').innerText = v.trip_start_time || 'Not started';
 
         const routePill = document.getElementById('info-route-status');
@@ -576,8 +572,8 @@
         routePill.className = 'status-pill-lg ' + v.route_color;
 
         // Fetch fresh ETA details for active trip
-        if (updateEta && v.active_trip_id) {
-            fetch(basePath + `/api/trip/${v.active_trip_id}/eta`)
+        if (updateEta && tripId) {
+            fetch(apiBasePath + `/trip/${tripId}/eta`)
                 .then(res => res.json())
                 .then(data => {
                     if (data.success && data.eta) {
@@ -600,7 +596,7 @@
 
     function loadTripRoute(tripId) {
         const requestSequence = ++routeRequestSequence;
-        fetch(basePath + `/api/trip/${tripId}/route`)
+        fetch(apiBasePath + `/trip/${tripId}/route`)
             .then(res => res.json())
             .then(data => {
                 if (requestSequence !== routeRequestSequence) return;
@@ -611,33 +607,20 @@
                         ? t.routes.map((route, index) => normalizeRouteOption(route, index)).filter(Boolean)
                         : [];
                     const primaryWaypoints = normalizeRouteOption({ waypoints: t.waypoints }, 0);
-
-                    if (routes.length > 0 && routes[0].route_index === 0) {
-                        if (primaryWaypoints) routes[0].waypoints = primaryWaypoints.waypoints;
-                    } else if (primaryWaypoints) {
+                    if (primaryWaypoints) {
                         routes.unshift({
-                            route_number: 1,
-                            route_index: 0,
-                            waypoints: primaryWaypoints.waypoints,
+                            ...primaryWaypoints,
+                            route_number: 'Primary',
+                            route_index: -1,
                             distance_km: t.eta ? t.eta.remaining_distance_km : null,
                             travel_time_mins: t.eta ? t.eta.remaining_travel_time_mins : null,
-                            formatted_travel_time: t.eta ? t.eta.remaining_time_formatted : null
-                        });
-                    }
-
-                    if (routes.length === 0 && primaryWaypoints) {
-                        routes.push({
-                            route_number: 1,
-                            route_index: 0,
-                            waypoints: primaryWaypoints.waypoints,
-                            distance_km: t.eta ? t.eta.remaining_distance_km : null,
-                            travel_time_mins: t.eta ? t.eta.remaining_travel_time_mins : null,
-                            formatted_travel_time: t.eta ? t.eta.remaining_time_formatted : null
+                            formatted_travel_time: t.eta ? t.eta.remaining_time_formatted : null,
+                            is_primary: true
                         });
                     }
 
                     setDestinationMarker(t.dest_coords);
-                    drawRoutePolylines(routes.slice(0, 3), t.route_color);
+                    drawRoutePolylines(routes.slice(0, 4), t.route_color);
                 }
             })
             .catch(err => {
@@ -759,7 +742,7 @@
 
             const label = document.createElement('span');
             label.className = 'route-option-label';
-            label.textContent = `Route ${route.route_number || index + 1}`;
+            label.textContent = route.is_primary ? 'Primary Route' : `Route ${route.route_number || index + 1}`;
 
             const summary = document.createElement('span');
             summary.className = 'route-option-summary';
@@ -865,7 +848,7 @@
         const count = document.getElementById('active-dispatch-count');
         if (count) count.textContent = String(activeDispatches.length);
 
-        const visibleDispatches = activeDispatches.filter(dispatch => vehicleMatchesSearch(dispatch, currentSearchQuery));
+        const visibleDispatches = activeDispatches.filter(dispatch => dispatchMatchesSearch(dispatch, currentSearchQuery));
         if (visibleDispatches.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'dispatch-empty';
@@ -885,12 +868,12 @@
             item.setAttribute('aria-disabled', vehicleIsLoaded ? 'false' : 'true');
             item.setAttribute('aria-pressed', activeVehicleId === vehicleId ? 'true' : 'false');
             item.addEventListener('click', () => {
-                if (vehicleIsLoaded) selectVehicle(vehicleId);
+                if (vehicleIsLoaded) selectVehicle(vehicleId, dispatch);
             });
             item.addEventListener('keydown', event => {
                 if (vehicleIsLoaded && (event.key === 'Enter' || event.key === ' ')) {
                     event.preventDefault();
-                    selectVehicle(vehicleId);
+                    selectVehicle(vehicleId, dispatch);
                 }
             });
 
@@ -931,7 +914,7 @@
     }
 
     function updateDashboardAnalytics() {
-        fetch(basePath + '/api/analytics/dashboard')
+        fetch(apiBasePath + '/analytics/dashboard')
             .then(res => res.json())
             .then(data => {
                 if (data.success && data.analytics) {
@@ -948,7 +931,7 @@
     }
 
     function loadNotifications() {
-        fetch(basePath + '/api/notifications')
+        fetch(apiBasePath + '/notifications')
             .then(res => res.json())
             .then(data => {
                 if (data.success && data.notifications) {
@@ -1054,7 +1037,7 @@
             log.innerText += `\n[ERROR] No active trip found for the selected vehicle — cannot simulate destination arrival.`;
             return;
         }
-        fetch(basePath + `/api/trip/${v.active_trip_id}/route`)
+        fetch(apiBasePath + `/trip/${v.active_trip_id}/route`)
             .then(res => res.json())
             .then(data => {
                 const dest = data.trip && data.trip.dest_coords;
@@ -1068,7 +1051,7 @@
         const vehicleId = parseInt(document.getElementById('mobile-vehicle-select').value);
         const log = document.getElementById('gps-log-output');
 
-        fetch(basePath + '/api/location/update', {
+        fetch(apiBasePath + '/location/update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1098,7 +1081,7 @@
         const out = document.getElementById('integration-output');
         out.innerText = `[SYNC] Transmitting integration request to /api/integration/system for system: ${system}...`;
 
-        fetch(basePath + '/api/integration/system', {
+        fetch(apiBasePath + '/integration/system', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ system: system })
@@ -1128,19 +1111,11 @@
         el.classList.toggle('open');
     }
 
-    function filterFleet(status) {
-        document.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
-        event.target.classList.add('active');
-
-        currentStatusFilter = status;
-        applyFleetFilters();
-    }
-
     function recenterMap() {
         const v = activeVehicleId ? fleetData.find(item => item.id === activeVehicleId)
-            : fleetData.find(item => Number.isFinite(Number(item.latitude)) && Number.isFinite(Number(item.longitude)));
-        if (v && Number.isFinite(Number(v.latitude)) && Number.isFinite(Number(v.longitude))) {
-            map.setView([v.latitude, v.longitude], 12);
+            : fleetData.find(hasValidCoordinates);
+        if (v && hasValidCoordinates(v)) {
+            map.setView([Number(v.latitude), Number(v.longitude)], 12);
         }
     }
 

@@ -38,7 +38,9 @@ class PageController extends Controller
                 'vehicle:id,vehicle_code,plate_number',
                 'driver:id,user_id,name,employee_id',
                 'driver.user:id,name',
-                'tripRecords' => fn ($query) => $query->orderByDesc('id'),
+                'tripRecords' => fn ($query) => $query
+                    ->whereRaw('LOWER(TRIM(status)) <> ?', ['completed'])
+                    ->orderByDesc('id'),
             ])
             ->whereRaw('LOWER(TRIM(dispatches.status)) = ?', ['active']);
 
@@ -61,6 +63,7 @@ class PageController extends Controller
                         'plate_number' => $dispatch->vehicle?->plate_number,
                         'driver_name' => $dispatch->driver?->user?->name ?? $dispatch->driver?->name,
                         'employee_id' => $dispatch->driver?->employee_id,
+                        'trip_record_id' => $trip?->id,
                         'origin' => $dispatch->origin ?: $trip?->origin,
                         'destination' => $dispatch->destination ?: $trip?->destination,
                         'status' => $dispatch->status,
