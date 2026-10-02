@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 $fuelLogs = $dashboard['fuelLogs'] ?? [];
 $fuelCount = count($fuelLogs);
 $totalLiters = array_sum(array_map(fn ($log) => (float) preg_replace('/[^0-9.]/', '', $log['liters'] ?? '0'), $fuelLogs));
@@ -12,7 +12,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
             <h3>Fuel Logs</h3>
             <p class="fuel-intro">Record refuels and keep an eye on fuel volume and spend.</p>
         </div>
-        <?php if ($dashboard['isAdmin']): ?><button class="pill-button" type="button" onclick="openFuelModal()">ï¼‹ Log fuel</button><?php endif; ?>
+        <button class="pill-button" type="button" onclick="openFuelModal()">+ Log fuel</button>
     </div>
 
     <?php if (session('status')): ?>
@@ -29,29 +29,27 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
     <div class="fuel-summary" aria-label="Summary of the latest fuel records">
         <article class="fuel-stat"><span>Records loaded</span><strong id="fuel-count"><?= $fuelCount ?></strong><small>Latest <?= $fuelCount ?> records</small></article>
         <article class="fuel-stat"><span>Fuel volume</span><strong id="fuel-liters"><?= number_format($totalLiters, 1) ?> L</strong><small>Across loaded records</small></article>
-        <article class="fuel-stat"><span>Total recorded cost</span><strong id="fuel-cost">â‚±<?= number_format($totalCost, 2) ?></strong><small>Across loaded records</small></article>
-        <article class="fuel-stat"><span>Average price</span><strong id="fuel-average"><?= $totalLiters > 0 ? 'â‚±'.number_format($averagePrice, 2) : 'â€”' ?></strong><small>Cost per liter</small></article>
+        <article class="fuel-stat"><span>Total recorded cost</span><strong id="fuel-cost">&#8369;<?= number_format($totalCost, 2) ?></strong><small>Across loaded records</small></article>
+        <article class="fuel-stat"><span>Average price</span><strong id="fuel-average"><?= $totalLiters > 0 ? '&#8369;'.number_format($averagePrice, 2) : '—' ?></strong><small>Cost per liter</small></article>
     </div>
 
     <div class="fuel-log-panel">
         <div class="fuel-table-heading">
             <div><h4>Recent refuels</h4><p>Showing up to 30 most recent entries.</p></div>
             <label class="fuel-search-wrap" for="fuel-search">
-                <span aria-hidden="true">âŒ•</span>
                 <input id="fuel-search" type="search" placeholder="Search driver, plate, or date" autocomplete="off">
             </label>
         </div>
         <div class="table-wrapper">
             <table id="fuel-log-table">
                 <thead>
-                    <tr><th>Driver</th><th>Vehicle plate no.</th><th>Date</th><th>Fuel before</th><th>Fuel after</th><th>Fuel added</th><th>Total cost</th><th>Price / L</th></tr>
+                    <tr><th>Driver</th><th>Vehicle plate no.</th><th>Date</th><th>Fuel before</th><th>Fuel after</th><th>Proof</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($fuelLogs as $log): ?>
                         <?php
                         $litersValue = (float) preg_replace('/[^0-9.]/', '', $log['liters'] ?? '0');
                         $costValue = (float) preg_replace('/[^0-9.]/', '', $log['cost'] ?? '0');
-                        $unitPrice = $litersValue > 0 ? $costValue / $litersValue : 0;
                         ?>
                         <tr class="fuel-log-row" data-search="<?= htmlspecialchars(strtolower(($log['driver'] ?? '').' '.($log['plate_number'] ?? '').' '.($log['vehicle'] ?? '').' '.($log['logged_at'] ?? '')), ENT_QUOTES, 'UTF-8') ?>" data-liters="<?= $litersValue ?>" data-cost="<?= $costValue ?>">
                             <td><strong><?= htmlspecialchars($log['driver'] ?? 'Unknown driver', ENT_QUOTES, 'UTF-8') ?></strong></td>
@@ -59,30 +57,27 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
                             <td><?= htmlspecialchars($log['logged_at'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= isset($log['fuel_level_before']) ? number_format((float) $log['fuel_level_before'], 1).'%' : '—' ?></td>
                             <td><?= isset($log['fuel_level_after']) ? number_format((float) $log['fuel_level_after'], 1).'%' : '—' ?></td>
-                            <td><?= number_format($litersValue, 1) ?> L</td>
-                            <td>&#8369;<?= number_format($costValue, 2) ?></td>
-                            <td><?= $litersValue > 0 ? '&#8369;'.number_format($unitPrice, 2) : '—' ?></td>
+                            <td><?php if ($dashboard['isAdmin'] && !empty($log['receipt_image'])): ?><a href="<?= route('fuel-logs.proof', $log['id']) ?>" target="_blank" rel="noopener">View photo</a><?php else: ?><?= !empty($log['receipt_image']) ? 'Submitted' : 'No photo' ?><?php endif; ?></td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if ($fuelCount === 0): ?>
-                        <tr id="fuel-empty-row"><td colspan="8" class="fuel-empty">No fuel records yet. Select â€œLog fuelâ€ to record the first refuel.</td></tr>
+                        <tr id="fuel-empty-row"><td colspan="6" class="fuel-empty">No fuel records yet. Select "Log fuel" to record the first refuel.</td></tr>
                     <?php endif; ?>
-                    <tr id="fuel-no-results" hidden><td colspan="8" class="fuel-empty">No records match your search.</td></tr>
+                    <tr id="fuel-no-results" hidden><td colspan="6" class="fuel-empty">No records match your search.</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 </section>
 
-<?php if ($dashboard['isAdmin']): ?>
 <div id="fuel-modal" class="modal-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="fuel-modal-title">
     <div class="modal-card">
         <div class="modal-header">
             <div><p class="eyebrow">New transaction</p><h3 id="fuel-modal-title">Log a refuel</h3></div>
-            <button class="close-btn" type="button" aria-label="Close form" onclick="closeFuelModal()">Ã—</button>
+            <button class="close-btn" type="button" aria-label="Close form" onclick="closeFuelModal()">×</button>
         </div>
         <p class="fuel-modal-copy">Enter the fuel amount and the total paid on the receipt.</p>
-        <form method="POST" action="<?= route('fuel-logs.store') ?>" id="fuel-form">
+        <form method="POST" action="<?= route('fuel-logs.store') ?>" id="fuel-form" enctype="multipart/form-data">
             <?= csrf_field() ?>
             <div class="form-group fuel-field">
                 <label for="fuel-vehicle">Vehicle</label>
@@ -114,6 +109,10 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
                     <input class="form-control" type="number" id="fuel-level-after" name="fuel_level_after" min="0" max="100" step="0.1" value="<?= htmlspecialchars((string) old('fuel_level_after', ''), ENT_QUOTES, 'UTF-8') ?>" required>
                 </div>
             </div>
+            <div class="form-group fuel-field">
+                <label for="fuel-proof">Fuel receipt / refuel photo (JPG, PNG, or WebP; max 5 MB)</label>
+                <input class="form-control" type="file" id="fuel-proof" name="receipt_image" accept="image/jpeg,image/png,image/webp" required>
+            </div>
             <div class="fuel-input-grid">
                 <div class="form-group fuel-field">
                     <label for="fuel-liters-input">Fuel added (liters)</label>
@@ -136,8 +135,6 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
         </form>
     </div>
 </div>
-<?php endif; ?>
-
 <style>
     .fuel-intro { margin: 6px 0 0; color: var(--muted); font-size: .9rem; }
     .fuel-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 4px 0 20px; }
@@ -217,15 +214,15 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
         noResults.hidden = count !== 0 || rows.length === 0;
         document.getElementById('fuel-count').textContent = count;
         document.getElementById('fuel-liters').textContent = `${liters.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} L`;
-        document.getElementById('fuel-cost').textContent = `â‚±${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        document.getElementById('fuel-average').textContent = liters > 0 ? `â‚±${(cost / liters).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'â€”';
+        document.getElementById('fuel-cost').textContent = `\u20B1${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        document.getElementById('fuel-average').textContent = liters > 0 ? `\u20B1${(cost / liters).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
     });
 
     const updateRate = () => {
         const liters = Number(litersInput.value);
         const cost = Number(costInput.value);
         preview.textContent = liters > 0 && cost >= 0
-            ? `Estimated price per liter: â‚±${(cost / liters).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            ? `Estimated price per liter: \u20B1${(cost / liters).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
             : 'Enter liters and total paid to estimate the price per liter.';
     };
     litersInput.addEventListener('input', updateRate);
