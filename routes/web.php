@@ -11,6 +11,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Middleware\PreventBackHistory;
+use App\Http\Middleware\AdminOnly;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -36,29 +37,31 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
         Route::get('/'.$page, [PageController::class, 'show'])->defaults('page', $page)->name($page);
     }
 
-    Route::post('/usermanagement', [UserManagementController::class, 'store'])->name('usermanagement.store');
-    Route::put('/usermanagement/{user}', [UserManagementController::class, 'update'])->name('usermanagement.update');
-    Route::delete('/usermanagement/{user}', [UserManagementController::class, 'destroy'])->name('usermanagement.destroy');
+    Route::middleware(AdminOnly::class)->group(function (): void {
+        Route::post('/usermanagement', [UserManagementController::class, 'store'])->name('usermanagement.store');
+        Route::put('/usermanagement/{user}', [UserManagementController::class, 'update'])->name('usermanagement.update');
+        Route::delete('/usermanagement/{user}', [UserManagementController::class, 'destroy'])->name('usermanagement.destroy');
 
-    Route::put('/settings/profile', [SettingsController::class, 'updateProfile'])->name('settings.profile');
-    Route::put('/settings/password', [SettingsController::class, 'updatePassword'])->name('settings.password');
-    Route::put('/settings/preferences', [SettingsController::class, 'updatePreferences'])->name('settings.preferences');
+        Route::put('/settings/profile', [SettingsController::class, 'updateProfile'])->name('settings.profile');
+        Route::put('/settings/password', [SettingsController::class, 'updatePassword'])->name('settings.password');
+        Route::put('/settings/preferences', [SettingsController::class, 'updatePreferences'])->name('settings.preferences');
 
-    Route::put('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
-    Route::put('/notifications/{alert}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
+        Route::put('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+        Route::put('/notifications/{alert}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
 
-    Route::post('/fuel-logs', [FleetCostController::class, 'storeFuelLog'])->name('fuel-logs.store');
-    Route::post('/cost-analytics/maintenance', [FleetCostController::class, 'storeMaintenance'])->name('maintenance.store');
+        Route::post('/fuel-logs', [FleetCostController::class, 'storeFuelLog'])->name('fuel-logs.store');
+        Route::post('/cost-analytics/maintenance', [FleetCostController::class, 'storeMaintenance'])->name('maintenance.store');
 
-    // Operations workflow: reserve a vehicle, create a dispatch, then track its progress.
-    Route::post('/reservations', [ReservationController::class, 'store'])->name('reservations.store');
-    Route::post('/reservations/{reservation}/approve', [ReservationController::class, 'approve'])->name('reservations.approve');
-    Route::post('/reservations/{reservation}/reject', [ReservationController::class, 'reject'])->name('reservations.reject');
-    Route::post('/dispatches', [DispatchController::class, 'store'])->name('dispatches.store');
-    Route::post('/dispatches/convert/{reservation}', [DispatchController::class, 'convert'])->name('dispatches.convert');
-    Route::post('/dispatches/{dispatch}/status', [DispatchController::class, 'updateStatus'])->name('dispatches.update-status');
-    Route::post('/vehicles', [VehicleController::class, 'store'])->name('vehicles.store');
-    Route::post('/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('vehicles.update');
+        // Operations workflow: reserve a vehicle, create a dispatch, then track its progress.
+        Route::post('/reservations', [ReservationController::class, 'store'])->name('reservations.store');
+        Route::post('/reservations/{reservation}/approve', [ReservationController::class, 'approve'])->name('reservations.approve');
+        Route::post('/reservations/{reservation}/reject', [ReservationController::class, 'reject'])->name('reservations.reject');
+        Route::post('/dispatches', [DispatchController::class, 'store'])->name('dispatches.store');
+        Route::post('/dispatches/convert/{reservation}', [DispatchController::class, 'convert'])->name('dispatches.convert');
+        Route::post('/dispatches/{dispatch}/status', [DispatchController::class, 'updateStatus'])->name('dispatches.update-status');
+        Route::post('/vehicles', [VehicleController::class, 'store'])->name('vehicles.store');
+        Route::post('/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('vehicles.update');
+    });
 });
 Route::prefix('api')->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])->group(function (): void {
     Route::get('/vehicles/live', [ApiController::class, 'getLiveVehicles']);
