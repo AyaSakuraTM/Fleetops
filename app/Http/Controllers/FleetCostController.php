@@ -44,7 +44,7 @@ class FleetCostController extends Controller
             ?? $driver?->name
             ?? ($request->user()->role !== 'Admin' ? $request->user()->name : 'No driver assigned');
 
-        Alert::log('â›½', 'Fuel Logged', sprintf(
+        Alert::log("\u{26FD}", 'Fuel Logged', sprintf(
             '%s: %.1fL logged for PHP %s by %s (driver: %s).',
             $vehicle->name ?? 'Vehicle',
             $log->liters,
@@ -77,7 +77,7 @@ class FleetCostController extends Controller
         $record = MaintenanceRecord::create($data);
         $vehicle = Vehicle::find($data['vehicle_id']);
 
-        Alert::log('ðŸ”§', 'Maintenance Logged', sprintf(
+        Alert::log("\u{1F527}", 'Maintenance Logged', sprintf(
             '%s: %s (â‚±%s) logged by %s.',
             $vehicle->name ?? 'Vehicle',
             $record->description,
