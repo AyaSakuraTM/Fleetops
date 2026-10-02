@@ -23,11 +23,13 @@ class TwoFactorLoginTest extends TestCase
         $this->post(route('login.store'), [
             'email' => $user->email,
             'password' => 'password',
-            'remember' => '1',
         ])->assertRedirect(route('two-factor.challenge'))->assertCookieMissing($cookieName);
         $this->assertGuest();
 
-        $response = $this->post(route('two-factor.verify'), ['code' => $user->fresh()->two_factor_code]);
+        $response = $this->post(route('two-factor.verify'), [
+            'code' => $user->fresh()->two_factor_code,
+            'remember' => '1',
+        ]);
         $response->assertRedirect('/dashboard')->assertCookie($cookieName);
         $this->assertAuthenticatedAs($user);
         $cookie = collect($response->headers->getCookies())->first(fn ($cookie) => $cookie->getName() === $cookieName);
@@ -57,8 +59,8 @@ class TwoFactorLoginTest extends TestCase
         $user->two_factor_expires_at = now()->subMinute();
         $user->save();
 
-        $this->withSession(['two_factor.user_id' => $user->id, 'two_factor.remember' => true])
-            ->post(route('two-factor.verify'), ['code' => '123456'])
+        $this->withSession(['two_factor.user_id' => $user->id])
+            ->post(route('two-factor.verify'), ['code' => '123456', 'remember' => '1'])
             ->assertSessionHasErrors('code')
             ->assertCookieMissing(auth('web')->getRecallerName());
         $this->assertGuest();
