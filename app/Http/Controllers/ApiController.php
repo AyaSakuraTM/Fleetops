@@ -426,6 +426,14 @@ class ApiController
             $destLng = $geo['lng'] ?? null;
         }
 
+      if ($originLat === null || $originLng === null || $destLat === null || $destLng === null) {
+    $this->jsonResponse([
+        'success' => false,
+        'error' => 'Unable to determine coordinates for the trip origin or destination. Please check the addresses and try again.',
+    ], 422);
+    return;
+}
+
         $now = date('Y-m-d H:i:s');
 
         $tripId = DB::transaction(function () use ($vehicleId, $driverId, $dispatchId, $origin, $destination, $originLat, $originLng, $destLat, $destLng, $now, $vehicle) {

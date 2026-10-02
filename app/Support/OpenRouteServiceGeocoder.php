@@ -4,18 +4,25 @@ namespace App\Support;
 
 class OpenRouteServiceGeocoder
 {
+    public function hasValidLatitude(mixed $latitude): bool
+    {
+        return is_numeric($latitude)
+            && is_finite((float) $latitude)
+            && (float) $latitude >= -90
+            && (float) $latitude <= 90;
+    }
+
+    public function hasValidLongitude(mixed $longitude): bool
+    {
+        return is_numeric($longitude)
+            && is_finite((float) $longitude)
+            && (float) $longitude >= -180
+            && (float) $longitude <= 180;
+    }
+
     public function hasValidCoordinates(mixed $latitude, mixed $longitude): bool
     {
-        if (!is_numeric($latitude) || !is_numeric($longitude)) {
-            return false;
-        }
-
-        $latitude = (float) $latitude;
-        $longitude = (float) $longitude;
-
-        return is_finite($latitude) && is_finite($longitude)
-            && $latitude >= -90 && $latitude <= 90
-            && $longitude >= -180 && $longitude <= 180;
+        return $this->hasValidLatitude($latitude) && $this->hasValidLongitude($longitude);
     }
 
     public function geocode(string $address): ?array

@@ -164,22 +164,46 @@ class DispatchController extends Controller
         DB::transaction(function () use ($dispatch, $newStatus) {
             $dispatch->update(['status' => $newStatus]);
 
-            if ($newStatus === 'Active') {
-                DB::table('vehicles')->where('id', $dispatch->vehicle_id)->update(['status' => 'In Transit', 'updated_at' => now()]);
+                                if ($newStatus === 'Active') {
+                if (trim((string) $dispatch->origin) === '') {
+                    throw new \RuntimeException(
+                        'An origin is required before this dispatch can be activated.'
+                    );
+                }
+
+                DB::table('vehicles')->where('id', $dispatch->vehicle_id)->update([
+                    'status' => 'In Transit',
+                    'updated_at' => now()
+                ]);
+
                 $existingTrip = TripRecord::where('dispatch_id', $dispatch->id)->first();
+
                 if (!$existingTrip) {
+                    $geocoder = app(OpenRouteServiceGeocoder::class);
+                    $originCoordinates = $geocoder->geocode($dispatch->origin);
+                    $destinationCoordinates = $geocoder->geocode($dispatch->destination ?? '');
+
+                    if ($originCoordinates === null || $destinationCoordinates === null) {
+                        throw new \RuntimeException(
+                            'Unable to determine coordinates for the dispatch origin or destination.'
+                        );
+                    }
+
                     TripRecord::create([
                         'dispatch_id' => $dispatch->id,
                         'vehicle_id' => $dispatch->vehicle_id,
                         'driver_id' => $dispatch->driver_id,
                         'origin' => $dispatch->origin,
                         'destination' => $dispatch->destination,
+                        'origin_lat' => $originCoordinates['lat'],
+                        'origin_lng' => $originCoordinates['lng'],
+                        'dest_lat' => $destinationCoordinates['lat'],
+                        'dest_lng' => $destinationCoordinates['lng'],
                         'departure_time' => now(),
                         'status' => 'Active'
                     ]);
                 }
             }
-
             if ($newStatus === 'Completed' || $newStatus === 'Cancelled') {
                 DB::table('vehicles')->where('id', $dispatch->vehicle_id)->update(['status' => 'Active', 'updated_at' => now()]);
                 $trip = TripRecord::where('dispatch_id', $dispatch->id)->where('status', 'Active')->first();
