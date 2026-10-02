@@ -10,7 +10,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
         <div>
             <p class="eyebrow">Fleet expenses</p>
             <h3>Fuel Logs</h3>
-            <p class="fuel-intro">Record refuels and keep an eye on fuel volume and spend.</p>
+            <p class="fuel-intro"><?= $dashboard['isAdmin'] ? 'Record refuels and keep an eye on fuel volume and spend.' : 'Review fuel records, fuel levels, and proof photos.' ?></p>
         </div>
         <button class="pill-button" type="button" onclick="openFuelModal()">+ Log fuel</button>
     </div>
@@ -43,7 +43,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
         <div class="table-wrapper">
             <table id="fuel-log-table">
                 <thead>
-                    <tr><th>Driver</th><th>Vehicle plate no.</th><th>Date</th><th>Fuel before</th><th>Fuel after</th><th>Proof</th></tr>
+                    <tr><?php if ($dashboard['isAdmin']): ?><th>Submitted by</th><?php endif; ?><th>Driver</th><th>Vehicle plate no.</th><th>Date</th><th>Fuel before</th><th>Fuel after</th><th>Proof</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($fuelLogs as $log): ?>
@@ -52,16 +52,17 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
                         $costValue = (float) preg_replace('/[^0-9.]/', '', $log['cost'] ?? '0');
                         ?>
                         <tr class="fuel-log-row" data-search="<?= htmlspecialchars(strtolower(($log['driver'] ?? '').' '.($log['plate_number'] ?? '').' '.($log['vehicle'] ?? '').' '.($log['logged_at'] ?? '')), ENT_QUOTES, 'UTF-8') ?>" data-liters="<?= $litersValue ?>" data-cost="<?= $costValue ?>">
+                            <?php if ($dashboard['isAdmin']): ?><td><?= htmlspecialchars($log['submitted_by'], ENT_QUOTES, 'UTF-8') ?></td><?php endif; ?>
                             <td><strong><?= htmlspecialchars($log['driver'] ?? 'Unknown driver', ENT_QUOTES, 'UTF-8') ?></strong></td>
                             <td><?= htmlspecialchars($log['plate_number'] ?? 'Unknown plate', ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars($log['logged_at'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= isset($log['fuel_level_before']) ? number_format((float) $log['fuel_level_before'], 1).'%' : '—' ?></td>
                             <td><?= isset($log['fuel_level_after']) ? number_format((float) $log['fuel_level_after'], 1).'%' : '—' ?></td>
-                            <td><?php if ($dashboard['isAdmin'] && !empty($log['receipt_image'])): ?><a href="<?= route('fuel-logs.proof', $log['id']) ?>" target="_blank" rel="noopener">View photo</a><?php else: ?><?= !empty($log['receipt_image']) ? 'Submitted' : 'No photo' ?><?php endif; ?></td>
+                            <td><?php if (!empty($log['receipt_image'])): ?><a href="<?= route('fuel-logs.proof', $log['id']) ?>" target="_blank" rel="noopener">View photo</a><?php else: ?>No photo<?php endif; ?></td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if ($fuelCount === 0): ?>
-                        <tr id="fuel-empty-row"><td colspan="6" class="fuel-empty">No fuel records yet. Select "Log fuel" to record the first refuel.</td></tr>
+                        <tr id="fuel-empty-row"><td colspan="<?= $dashboard['isAdmin'] ? 7 : 6 ?>" class="fuel-empty">No fuel records yet. Select "Log fuel" to record the first refuel.</td></tr>
                     <?php endif; ?>
                     <tr id="fuel-no-results" hidden><td colspan="6" class="fuel-empty">No records match your search.</td></tr>
                 </tbody>
@@ -77,7 +78,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
             <button class="close-btn" type="button" aria-label="Close form" onclick="closeFuelModal()">×</button>
         </div>
         <p class="fuel-modal-copy">Enter the fuel amount and the total paid on the receipt.</p>
-        <form method="POST" action="<?= route('fuel-logs.store') ?>" id="fuel-form" enctype="multipart/form-data">
+        <form method="POST" action="<?= $dashboard['isAdmin'] ? route('fuel-logs.store') : route('users.fuel-logs.store') ?>" id="fuel-form" enctype="multipart/form-data">
             <?= csrf_field() ?>
             <div class="form-group fuel-field">
                 <label for="fuel-vehicle">Vehicle</label>
@@ -189,10 +190,11 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
     const preview = document.getElementById('fuel-rate-preview');
 
     window.openFuelModal = () => {
+        if (!modal) return;
         modal.style.display = 'flex';
         document.getElementById('fuel-vehicle')?.focus();
     };
-    window.closeFuelModal = () => { modal.style.display = 'none'; };
+    window.closeFuelModal = () => { if (modal) modal.style.display = 'none'; };
 
     modal?.addEventListener('click', (event) => { if (event.target === modal) window.closeFuelModal(); });
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && modal?.style.display === 'flex') window.closeFuelModal(); });
@@ -225,16 +227,16 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
             ? `Estimated price per liter: \u20B1${(cost / liters).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
             : 'Enter liters and total paid to estimate the price per liter.';
     };
-    litersInput.addEventListener('input', updateRate);
-    costInput.addEventListener('input', updateRate);
+    litersInput?.addEventListener('input', updateRate);
+    costInput?.addEventListener('input', updateRate);
 
-    vehicleSelect.addEventListener('change', () => {
+    vehicleSelect?.addEventListener('change', () => {
         const selectedVehicle = vehicleSelect.selectedOptions[0];
         fuelBeforeInput.value = selectedVehicle?.dataset.fuelLevel ?? '';
         fuelAfterInput.value = '';
     });
 
-    <?php if ($errors->any()): ?>
+    <?php if ($errors->any() && $dashboard['isAdmin']): ?>
     window.openFuelModal();
     <?php endif; ?>
 })();
