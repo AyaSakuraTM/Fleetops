@@ -308,9 +308,9 @@
             <div class="form-group margin-top-sm">
                 <label>Select Driver Vehicle:</label>
                 <select id="mobile-vehicle-select" class="form-control">
-                    <option value="1">TRK-101 (Harvey Villarin - Cargo Truck)</option>
-                    <option value="2">TRK-102 (Jhoanna Reforsado - Refrigerated)</option>
-                    <option value="3">TRK-103 (Erwin Cober - Container Hauler)</option>
+                    <?php foreach (($dashboard['vehicleOptions'] ?? []) as $optVehicle): ?>
+                        <option value="<?= (int)$optVehicle->id ?>"><?= htmlspecialchars(($optVehicle->name ?? $optVehicle->plate_number ?? 'Vehicle') . ' (' . htmlspecialchars($optVehicle->plate_number ?? '') . ')') ?></option>
+                    <?php endforeach; ?>
                 </select>
             </div>
 
@@ -514,6 +514,14 @@
         if (!selectedVehicle) return;
 
         const latLng = [selectedVehicle.latitude, selectedVehicle.longitude];
+        if (!Number.isFinite(Number(selectedVehicle.latitude)) || !Number.isFinite(Number(selectedVehicle.longitude))) {
+            // No live coordinates yet — leave the map centered, remove the marker if present.
+            if (vehicleMarkers[selectedVehicle.id]) {
+                if (map.hasLayer(vehicleMarkers[selectedVehicle.id])) map.removeLayer(vehicleMarkers[selectedVehicle.id]);
+                delete vehicleMarkers[selectedVehicle.id];
+            }
+            return;
+        }
         const icon = createTruckIcon(selectedVehicle.vehicle_code, selectedVehicle.status, selectedVehicle.speed, selectedVehicle.route_color);
 
         if (vehicleMarkers[selectedVehicle.id]) {
@@ -539,8 +547,10 @@
         displayVehicleDetails(v);
         if (v.active_trip_id) loadTripRoute(v.active_trip_id);
 
-        // Center map on marker
-        map.panTo([v.latitude, v.longitude], { animate: true });
+        // Center map on marker when live coordinates exist
+        if (Number.isFinite(Number(v.latitude)) && Number.isFinite(Number(v.longitude))) {
+            map.panTo([v.latitude, v.longitude], { animate: true });
+        }
     }
 
     function displayVehicleDetails(v, updateEta = true) {
@@ -562,7 +572,9 @@
         document.getElementById('info-fuel-bar').style.width = v.fuel_level + '%';
         document.getElementById('info-fuel-val').innerText = v.fuel_level + '%';
 
-        document.getElementById('info-location').innerText = `${v.latitude.toFixed(4)}, ${v.longitude.toFixed(4)} (${v.origin})`;
+        document.getElementById('info-location').innerText = (Number.isFinite(Number(v.latitude)) && Number.isFinite(Number(v.longitude)))
+            ? `${Number(v.latitude).toFixed(4)}, ${Number(v.longitude).toFixed(4)} (${v.origin})`
+            : `No live GPS fix (${v.origin})`;
         document.getElementById('info-destination').innerText = v.destination;
         document.getElementById('info-start-time').innerText = v.trip_start_time || '10:30 AM';
 

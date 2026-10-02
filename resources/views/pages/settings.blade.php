@@ -23,6 +23,7 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
     <?php endif; ?>
 
     <div class="settings-grid">
+        <?php if ($dashboard['isAdmin']): ?>
         <section class="settings-card" aria-labelledby="profile-heading">
             <div class="settings-card-heading">
                 <span class="settings-icon" aria-hidden="true">👤</span>
@@ -45,7 +46,9 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
                 </fieldset>
             </form>
         </section>
+        <?php endif; ?>
 
+        <?php if ($dashboard['isAdmin']): ?>
         <section class="settings-card" aria-labelledby="security-heading">
             <div class="settings-card-heading">
                 <span class="settings-icon" aria-hidden="true">🔒</span>
@@ -73,6 +76,7 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
             </form>
             <p class="settings-note">Two-factor email verification is required at every sign-in.</p>
         </section>
+        <?php endif; ?>
 
         <section class="settings-card settings-card-wide" aria-labelledby="preferences-heading">
             <div class="settings-card-heading">

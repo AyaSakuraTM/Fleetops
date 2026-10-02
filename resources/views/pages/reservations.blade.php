@@ -165,6 +165,12 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
     padding: 20px;
     backdrop-filter: blur(3px);
 }
+@media (max-width: 560px) {
+    .modal-backdrop { padding: 10px; align-items: flex-end; }
+    .modal-card { max-height: 92vh; border-radius: 18px 18px 0 0; }
+    .modal-card [style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+    .hub-kpi-grid { grid-template-columns: 1fr 1fr !important; }
+}
 .modal-card {
     background: var(--surface);
     border: 1px solid var(--border);
