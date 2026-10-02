@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v=20260814c" />
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}?v=20261002" />
     <style>
       /* ── THEME OVERRIDE ───────────────────────────── */
       :root {
@@ -41,8 +41,8 @@
       [data-theme="dark"] .main-panel { background: #0d1421; }
       [data-theme="dark"] .stat-card,
       [data-theme="dark"] .panel,
+      [data-theme="dark"] .hero-card,
       [data-theme="dark"] .search-bar,
-      [data-theme="dark"] .profile-pill,
       [data-theme="dark"] .modal-card,
       [data-theme="dark"] .panel-card {
         background: #162032 !important;
@@ -55,24 +55,19 @@
         box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
       }
       [data-theme="dark"] .tb-icon-btn:hover { color: #4361ee !important; }
-      [data-theme="dark"] .profile-pill .pp-info strong { color: #e4eaf5 !important; }
-      [data-theme="dark"] .profile-pill .pp-info small  { color: #7a8faa !important; }
-      [data-theme="dark"] .profile-pill .pp-chevron { color: #7a8faa !important; }
-      [data-theme="dark"] .profile-pill .pp-avatar {
-        background: linear-gradient(135deg,#4361ee,#7b2ff7) !important;
-      }
-      [data-theme="dark"] .pp-menu,
       [data-theme="dark"] .sb-menu {
         background: #162032 !important;
         box-shadow: 0 12px 32px rgba(0,0,0,0.45) !important;
       }
-      [data-theme="dark"] .pp-menu-item,
       [data-theme="dark"] .sb-menu-item { color: #e4eaf5 !important; }
-      [data-theme="dark"] .pp-menu-item:hover,
       [data-theme="dark"] .sb-menu-item:hover { background: rgba(67,97,238,0.15) !important; }
       [data-theme="dark"] .search-bar input { color: #e4eaf5 !important; background: transparent !important; }
       [data-theme="dark"] .search-bar svg { color: #7a8faa !important; }
+      [data-theme="dark"] .hero-card { background: linear-gradient(90deg, #162032 0%, #1a2840 100%) !important; }
+      [data-theme="dark"] .hero-card h1 { color: #e4eaf5 !important; }
+      [data-theme="dark"] .hero-copy { color: #7a8faa !important; }
       [data-theme="dark"] .eyebrow { color: #4cc9f0 !important; }
+      [data-theme="dark"] .hero-badge { background: rgba(67,97,238,0.2) !important; color: #7ba8ff !important; }
       [data-theme="dark"] .stat-heading { color: #7a8faa !important; }
       [data-theme="dark"] .stat-value { color: #e4eaf5 !important; }
       [data-theme="dark"] .negative-card { background: linear-gradient(135deg, #162032 0%, #1d2516 100%) !important; }
@@ -291,26 +286,9 @@
         border: 2px solid var(--surface);
       }
       .tb-badge.red { background: #ef4444; color: #fff; }
-      .tb-badge.blue { background: #4361ee; color: #fff; }
 
-      /* Profile pill */
-      .profile-pill {
-        display: flex !important;
-        align-items: center !important;
-        gap: 10px !important;
-        background: var(--surface) !important;
-        padding: 7px 14px 7px 8px !important;
-        border-radius: 999px !important;
-        box-shadow: var(--shadow) !important;
-        border: none !important;
-        cursor: pointer !important;
-        transition: box-shadow 0.18s ease, transform 0.18s ease !important;
-        position: relative !important;
-      }
-      .profile-pill:hover { box-shadow: 0 8px 24px rgba(67,97,238,0.15) !important; transform: translateY(-1px) !important; }
-
-      /* Profile / sidebar user dropdown menus */
-      .pp-menu, .sb-menu {
+      /* Sidebar user dropdown menu */
+      .sb-menu {
         display: none;
         position: absolute;
         min-width: 170px;
@@ -320,11 +298,9 @@
         padding: 6px;
         z-index: 200;
       }
-      .pp-menu { top: calc(100% + 8px); right: 0; }
       .sb-menu { left: 0; bottom: calc(100% + 8px); }
-      .profile-pill.open .pp-menu,
       .sb-user.open .sb-menu { display: block; }
-      .pp-menu-item, .sb-menu-item {
+      .sb-menu-item {
         display: block;
         width: 100%;
         text-align: left;
@@ -338,30 +314,13 @@
         cursor: pointer;
         text-decoration: none;
       }
-      .pp-menu-item:hover, .sb-menu-item:hover { background: rgba(67,97,238,0.08); }
-      .pp-menu-item.danger, .sb-menu-item.danger { color: #e5484d; }
-      .pp-menu-item.danger:hover, .sb-menu-item.danger:hover { background: rgba(229,72,77,0.08); }
-      .profile-pill .pp-avatar {
-        width: 34px;
-        height: 34px;
-        border-radius: 50%;
-        background: linear-gradient(135deg,#4361ee,#7b2ff7);
-        color: #fff;
-        font-weight: 700;
-        font-size: 0.78rem;
-        display: grid;
-        place-items: center;
-        flex-shrink: 0;
-      }
-      .profile-pill .pp-info strong, .profile-pill .pp-info small { display: block; }
-      .profile-pill .pp-info strong { font-size: 0.84rem; font-weight: 700; color: var(--text); }
-      .profile-pill .pp-info small { font-size: 0.72rem; color: var(--muted); margin-top: 1px; }
-      .profile-pill .pp-chevron { color: var(--muted); margin-left: 2px; }
-      .profile-pill .pp-chevron svg { width: 14px; height: 14px; display: block; }
-
+      .sb-menu-item:hover { background: rgba(67,97,238,0.08); }
+      .sb-menu-item.danger { color: #e5484d; }
+      .sb-menu-item.danger:hover { background: rgba(229,72,77,0.08); }
       /* Other theme overrides */
       body { background: #f4f6fb !important; }
       .eyebrow { color: #4361ee !important; }
+      .hero-badge { background: rgba(67,97,238,0.12) !important; color: #4361ee !important; }
       .pill-button { background: rgba(67,97,238,0.12) !important; color: #4361ee !important; }
       .positive { color: #22c55e !important; }
       .list-icon { background: rgba(67,97,238,0.12) !important; color: #4361ee !important; }
@@ -386,130 +345,6 @@
       .sidebar.collapsed .sb-collapse svg { transform: rotate(180deg); }
       .sidebar.collapsed .sb-user { justify-content: center; padding: 12px; }
       .sidebar.collapsed .sb-brand-logo-wrap { margin-right: 0 !important; }
-
-      @media (min-width: 961px) and (max-width: 1180px) {
-        .sidebar {
-          position: relative !important;
-          top: auto !important;
-          width: 100% !important;
-          min-width: 0 !important;
-          height: auto !important;
-        }
-      }
-
-      @media (max-width: 960px) {
-        .app-shell {
-          display: block !important;
-          width: 100%;
-          max-width: 100%;
-          min-width: 0;
-        }
-        .app-shell.sidebar-open::before {
-          content: "";
-          position: fixed;
-          inset: 0;
-          z-index: 999;
-          background: rgba(10, 18, 35, 0.48);
-        }
-        .sidebar {
-          position: fixed !important;
-          top: 0 !important;
-          right: auto !important;
-          bottom: 0 !important;
-          left: 0 !important;
-          width: min(280px, calc(100vw - 40px)) !important;
-          min-width: 0 !important;
-          max-width: calc(100vw - 40px);
-          height: 100vh !important;
-          height: 100dvh !important;
-          padding: 0 !important;
-          transform: translateX(-105%) !important;
-          transition: transform 0.24s ease !important;
-          z-index: 1000 !important;
-        }
-        .app-shell.sidebar-open .sidebar { transform: translateX(0) !important; }
-        .sidebar.collapsed {
-          width: min(280px, calc(100vw - 40px)) !important;
-          min-width: 0 !important;
-          padding: 0 !important;
-        }
-        .sidebar.collapsed .sb-brand { justify-content: flex-start; padding: 16px 14px 14px; }
-        .sidebar.collapsed .nav-item { justify-content: flex-start !important; padding: 9px 12px !important; }
-        .sidebar.collapsed .nav-item span:not(.nav-badge),
-        .sidebar.collapsed .sb-collapse span,
-        .sidebar.collapsed .sb-user-info,
-        .sidebar.collapsed .sb-user-chevron { display: initial !important; }
-        .sidebar.collapsed .sb-user { justify-content: flex-start; padding: 14px 16px; }
-        .sidebar.collapsed .sb-collapse { justify-content: flex-start; padding: 12px 20px; }
-        .main-panel {
-          width: 100%;
-          max-width: 100%;
-          min-width: 0;
-          box-sizing: border-box;
-        }
-        .topbar {
-          display: grid !important;
-          grid-template-columns: 40px minmax(0, 1fr) auto !important;
-          align-items: center !important;
-          justify-content: initial !important;
-          column-gap: 8px !important;
-          row-gap: 8px !important;
-          flex-wrap: initial !important;
-          margin-bottom: 14px !important;
-        }
-        #mobileToggle {
-          grid-column: 1;
-          grid-row: 1;
-          justify-self: center;
-          align-self: center;
-          display: inline-flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 4px;
-          width: 36px;
-          height: 36px;
-          padding: 0;
-          border: 1px solid var(--border);
-          border-radius: 10px;
-          background: var(--surface);
-          color: var(--sidebar);
-          box-shadow: var(--shadow);
-        }
-        #mobileToggle span {
-          width: 18px;
-          height: 2px;
-          margin: 0;
-          background: currentColor;
-          border-radius: 999px;
-        }
-        .search-bar {
-          grid-column: 2;
-          grid-row: 1;
-          width: 100% !important;
-          min-width: 0 !important;
-          padding: 9px 10px !important;
-          gap: 6px;
-        }
-        .search-bar input { min-width: 0; font-size: 0.8rem !important; }
-        .topbar-actions {
-          grid-column: 3;
-          grid-row: 1;
-          width: auto !important;
-          min-width: 0;
-          margin: 0 !important;
-          gap: 6px !important;
-          flex-wrap: nowrap !important;
-          justify-content: flex-end !important;
-        }
-        .topbar-actions .tb-icon-btn { width: 36px; height: 36px; }
-      }
-
-      @media (max-width: 480px) {
-        .topbar { grid-template-columns: 36px minmax(0, 1fr) auto !important; }
-        #mobileToggle { width: 34px; height: 34px; }
-        .topbar-actions .tb-icon-btn { width: 34px; height: 34px; }
-      }
     </style>
 </head>
 <body>
@@ -628,6 +463,7 @@
                 'routes'          => ['label' => 'Smart Routing',   'icon' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>'],
                 'reports'         => ['label' => 'Reports',         'icon' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>'],
                 'notifications'   => ['label' => 'Notifications',   'icon' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>', 'badge' => 3],
+                'usermanagement'  => ['label' => 'User Management', 'icon' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'],
                 'settings'        => ['label' => 'Settings',        'icon' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'],
             ];
             foreach ($navItems as $route => $item):
@@ -671,12 +507,12 @@
     <main class="main-panel">
         <header class="topbar">
             <!-- Mobile toggle -->
-            <button class="sidebar-toggle" type="button" aria-label="Open navigation" aria-controls="mainSidebar" aria-expanded="false" id="mobileToggle">
+            <button class="sidebar-toggle" type="button" aria-label="Open navigation" id="mobileToggle">
                 <span></span><span></span><span></span>
             </button>
 
             <!-- Search bar -->
-            <div class="search-bar" style="flex:1 1 320px; min-width:0;">
+            <div class="search-bar" style="flex:1 1 320px; min-width:200px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);flex-shrink:0"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input type="text" id="globalSearchInput" placeholder="Search fleet, routes, drivers..." style="border:0;outline:none;width:100%;background:transparent;font-size:0.9rem;" />
             </div>
@@ -697,7 +533,14 @@
             </div>
         </header>
 
-        <h1 class="page-title"><?= htmlspecialchars($dashboard['title']) ?></h1>
+        <section class="hero-card">
+            <div>
+                <p class="eyebrow">Fleet operations overview</p>
+                <h1><?= htmlspecialchars($dashboard['title']) ?></h1>
+                <p class="hero-copy">You have 12 dispatches ready, 198 vehicles active, and 3 critical alerts to review.</p>
+            </div>
+            <div class="hero-badge">Live • 24/7 Operations</div>
+        </section>
 
         @include('pages.'.$dashboard['page'], ['dashboard' => $dashboard])
     </main>
@@ -729,37 +572,24 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Mobile toggle
     if (mobBtn && shell) {
-      function closeMobileSidebar() {
-        shell.classList.remove('sidebar-open');
-        mobBtn.setAttribute('aria-expanded', 'false');
-      }
-
-      mobBtn.addEventListener('click', function () {
-        var isOpen = shell.classList.toggle('sidebar-open');
-        mobBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-      });
+        mobBtn.addEventListener('click', function () { shell.classList.toggle('sidebar-open'); });
         document.addEventListener('click', function (e) {
             if (!shell.classList.contains('sidebar-open')) return;
             if (sidebar && sidebar.contains(e.target)) return;
             if (mobBtn.contains(e.target)) return;
-        closeMobileSidebar();
-      });
-      document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') closeMobileSidebar();
+            shell.classList.remove('sidebar-open');
         });
     }
 
-    // Profile dropdown handlers
+    // Sidebar profile dropdown handlers
     var logoutForm = document.getElementById('logoutForm');
     var sbUser     = document.getElementById('sbUser');
-    var profPill   = document.getElementById('profilePill');
 
     function closeProfileMenus() {
         if (sbUser) sbUser.classList.remove('open');
-        if (profPill) profPill.classList.remove('open');
     }
 
-    [sbUser, profPill].forEach(function (el) {
+    [sbUser].forEach(function (el) {
         if (!el) return;
         el.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -772,7 +602,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('click', closeProfileMenus);
 
     if (logoutForm) {
-        document.querySelectorAll('.pp-menu-logout, .sb-menu-logout').forEach(function (btn) {
+        document.querySelectorAll('.sb-menu-logout').forEach(function (btn) {
             btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 logoutForm.submit();
