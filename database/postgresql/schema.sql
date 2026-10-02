@@ -98,7 +98,10 @@ CREATE TABLE IF NOT EXISTS location_logs (
 
 CREATE TABLE IF NOT EXISTS fuel_logs (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, vehicle_id BIGINT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+    driver_id BIGINT REFERENCES drivers(id) ON DELETE SET NULL,
     dispatch_id BIGINT REFERENCES dispatches(id) ON DELETE SET NULL, liters NUMERIC(8,2) NOT NULL CHECK (liters > 0),
+    fuel_level_before NUMERIC(5,2) CHECK (fuel_level_before BETWEEN 0 AND 100),
+    fuel_level_after NUMERIC(5,2) CHECK (fuel_level_after BETWEEN 0 AND 100),
     cost NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (cost >= 0), logged_at DATE NOT NULL, receipt_image VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
