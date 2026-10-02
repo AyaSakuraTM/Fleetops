@@ -10,9 +10,9 @@ class AdminOnly
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user()?->role === 'User' && $request->isMethod('GET')) {
+        if ($request->user() && $request->user()->role !== 'Admin' && $request->isMethod('GET')) {
             $page = trim($request->path(), '/');
-            if (in_array($page, ['dashboard', 'vehicles', 'reservations', 'drivers', 'fuel-logs', 'cost-analytics', 'driver-analytics', 'routes', 'reports', 'settings', 'notifications'], true)) {
+            if (in_array($page, ['dashboard', 'vehicles', 'reservations', 'drivers', 'fuel-logs', 'cost-analytics', 'driver-analytics', 'routes', 'reports', 'settings', 'usermanagement', 'notifications'], true)) {
                 return redirect('/users/'.$page);
             }
         }

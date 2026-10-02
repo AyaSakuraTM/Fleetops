@@ -14,7 +14,7 @@ class UserOnly
             return redirect('/dashboard');
         }
 
-        abort_unless($request->user()?->role === 'User', 403, 'User access only.');
+        abort_unless($request->user() && $request->user()->role !== 'Admin', 403, 'User access only.');
 
         return $next($request);
     }
