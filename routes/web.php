@@ -44,6 +44,7 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
         foreach (['vehicles', 'reservations', 'drivers', 'fuel-logs', 'cost-analytics', 'driver-analytics', 'routes', 'reports', 'settings', 'usermanagement', 'notifications'] as $page) {
             Route::get('/'.$page, [PageController::class, 'showUser'])->defaults('page', $page)->name($page);
         }
+        Route::post('/reservations', [ReservationController::class, 'store'])->name('reservations.store');
         Route::post('/fuel-logs', [FleetCostController::class, 'storeFuelLog'])->name('fuel-logs.store');
     });
 
@@ -73,7 +74,7 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
         Route::post('/dispatches/convert/{reservation}', [DispatchController::class, 'convert'])->name('dispatches.convert');
         Route::post('/dispatches/{dispatch}/status', [DispatchController::class, 'updateStatus'])->name('dispatches.update-status');
         Route::post('/vehicles', [VehicleController::class, 'store'])->name('vehicles.store');
-        Route::post('/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('vehicles.update');
+        Route::put('/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('vehicles.update');
     });
 });
 Route::prefix('api')->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])->group(function (): void {
