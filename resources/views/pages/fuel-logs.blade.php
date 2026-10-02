@@ -59,7 +59,7 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
                             <td><?= htmlspecialchars($log['logged_at'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= isset($log['fuel_level_before']) ? number_format((float) $log['fuel_level_before'], 1).'%' : '—' ?></td>
                             <td><?= isset($log['fuel_level_after']) ? number_format((float) $log['fuel_level_after'], 1).'%' : '—' ?></td>
-                            <td><?php if (!empty($log['receipt_image'])): ?><a href="<?= route('fuel-logs.proof', $log['id']) ?>">View photo</a><?php else: ?>No photo<?php endif; ?></td>
+                            <td><?php if (!empty($log['receipt_image'])): ?><a href="<?= route('fuel-logs.proof', $log['id']) ?>" target="_blank" rel="noopener noreferrer">View photo</a><?php else: ?>No photo<?php endif; ?></td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if ($fuelCount === 0): ?>
