@@ -12,6 +12,7 @@ use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Middleware\PreventBackHistory;
 use App\Http\Middleware\AdminOnly;
+use App\Http\Middleware\UserOnly;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -32,10 +33,17 @@ Route::middleware('guest')->group(function (): void {
 });
 Route::post('/logout', [AuthController::class, 'destroy'])->middleware(['auth', PreventBackHistory::class])->name('logout');
 Route::middleware(['auth', PreventBackHistory::class])->group(function (): void {
-    Route::get('/dashboard', [PageController::class, 'show'])->defaults('page', 'dashboard')->name('dashboard');
+    Route::get('/dashboard', [PageController::class, 'show'])->defaults('page', 'dashboard')->middleware(AdminOnly::class)->name('dashboard');
     foreach (['vehicles', 'reservations', 'drivers', 'fuel-logs', 'cost-analytics', 'driver-analytics', 'routes', 'reports', 'settings', 'usermanagement', 'notifications'] as $page) {
-        Route::get('/'.$page, [PageController::class, 'show'])->defaults('page', $page)->name($page);
+        Route::get('/'.$page, [PageController::class, 'show'])->defaults('page', $page)->middleware(AdminOnly::class)->name($page);
     }
+
+    Route::prefix('users')->middleware(UserOnly::class)->name('users.')->group(function (): void {
+        Route::get('/dashboard', [PageController::class, 'showUser'])->defaults('page', 'dashboard')->name('dashboard');
+        foreach (['vehicles', 'reservations', 'drivers', 'fuel-logs', 'cost-analytics', 'driver-analytics', 'routes', 'reports', 'settings', 'notifications'] as $page) {
+            Route::get('/'.$page, [PageController::class, 'showUser'])->defaults('page', $page)->name($page);
+        }
+    });
 
     // Users may submit fuel records with proof; all other write actions remain admin-only.
     Route::post('/fuel-logs', [FleetCostController::class, 'storeFuelLog'])->name('fuel-logs.store');
