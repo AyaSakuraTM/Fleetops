@@ -12,7 +12,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
             <h3>Fuel Logs</h3>
             <p class="fuel-intro">Record refuels and keep an eye on fuel volume and spend.</p>
         </div>
-        <button class="pill-button" type="button" onclick="openFuelModal()">ï¼‹ Log fuel</button>
+        <?php if ($dashboard['isAdmin']): ?><button class="pill-button" type="button" onclick="openFuelModal()">ï¼‹ Log fuel</button><?php endif; ?>
     </div>
 
     <?php if (session('status')): ?>
@@ -74,6 +74,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
     </div>
 </section>
 
+<?php if ($dashboard['isAdmin']): ?>
 <div id="fuel-modal" class="modal-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="fuel-modal-title">
     <div class="modal-card">
         <div class="modal-header">
@@ -135,6 +136,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <style>
     .fuel-intro { margin: 6px 0 0; color: var(--muted); font-size: .9rem; }
@@ -195,8 +197,8 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
     };
     window.closeFuelModal = () => { modal.style.display = 'none'; };
 
-    modal.addEventListener('click', (event) => { if (event.target === modal) window.closeFuelModal(); });
-    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && modal.style.display === 'flex') window.closeFuelModal(); });
+    modal?.addEventListener('click', (event) => { if (event.target === modal) window.closeFuelModal(); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && modal?.style.display === 'flex') window.closeFuelModal(); });
 
     search.addEventListener('input', () => {
         const query = search.value.trim().toLowerCase();

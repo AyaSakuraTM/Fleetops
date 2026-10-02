@@ -9,9 +9,9 @@
             <button class="btn-export" onclick="exportFleetCSV()">
                 <span class="btn-icon">📊</span> Export Fleet
             </button>
-            <button class="btn-add-vehicle" onclick="openAddVehicleModal()">
+            <?php if ($dashboard['isAdmin']): ?><button class="btn-add-vehicle" onclick="openAddVehicleModal()">
                 <span class="btn-icon">+</span> Add New Vehicle
-            </button>
+            </button><?php endif; ?>
         </div>
     </div>
 
@@ -46,6 +46,7 @@
 </div>
 
 <!-- Modal: Add New Vehicle -->
+<?php if ($dashboard['isAdmin']): ?>
 <div id="add-vehicle-modal" class="modal-backdrop" style="display: none;">
     <div class="modal-card">
         <div class="modal-header">
@@ -98,6 +99,7 @@
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- Modal: View Vehicle Details -->
 <div id="view-vehicle-modal" class="modal-backdrop" style="display: none;">

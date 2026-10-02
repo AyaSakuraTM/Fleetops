@@ -23,7 +23,7 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
     <?php endif; ?>
 
     <div class="settings-grid">
-        <section class="settings-card" aria-labelledby="profile-heading" hidden>
+        <section class="settings-card" aria-labelledby="profile-heading">
             <div class="settings-card-heading">
                 <span class="settings-icon" aria-hidden="true">👤</span>
                 <div><h4 id="profile-heading">Profile</h4><p>Update the name and email shown on your account.</p></div>
@@ -31,6 +31,7 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
             <form method="POST" action="<?= route('settings.profile') ?>" class="settings-form">
                 <?= csrf_field() ?>
                 <?= method_field('PUT') ?>
+                <fieldset style="display:contents;border:0;padding:0;" <?= $dashboard['isAdmin'] ? '' : 'disabled' ?>>
                 <div class="form-group">
                     <label for="profile-name">Full name</label>
                     <input class="form-control" type="text" id="profile-name" name="name" autocomplete="name" required maxlength="100" value="<?= htmlspecialchars($user['name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
@@ -40,11 +41,12 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
                     <input class="form-control" type="email" id="profile-email" name="email" autocomplete="email" required maxlength="100" value="<?= htmlspecialchars($user['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                     <small class="settings-help">Used for sign-in and account notices.</small>
                 </div>
-                <button type="submit" class="btn-primary">Save profile</button>
+                <?php if ($dashboard['isAdmin']): ?><button type="submit" class="btn-primary">Save profile</button><?php endif; ?>
+                </fieldset>
             </form>
         </section>
 
-        <section class="settings-card" aria-labelledby="security-heading" hidden>
+        <section class="settings-card" aria-labelledby="security-heading">
             <div class="settings-card-heading">
                 <span class="settings-icon" aria-hidden="true">🔒</span>
                 <div><h4 id="security-heading">Security</h4><p>Choose a new password for your account.</p></div>
@@ -52,6 +54,7 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
             <form method="POST" action="<?= route('settings.password') ?>" class="settings-form">
                 <?= csrf_field() ?>
                 <?= method_field('PUT') ?>
+                <fieldset style="display:contents;border:0;padding:0;" <?= $dashboard['isAdmin'] ? '' : 'disabled' ?>>
                 <div class="form-group">
                     <label for="current-password">Current password</label>
                     <input class="form-control" type="password" id="current-password" name="current_password" autocomplete="current-password" required>
@@ -65,7 +68,8 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
                     <label for="new-password-confirm">Confirm new password</label>
                     <input class="form-control" type="password" id="new-password-confirm" name="password_confirmation" autocomplete="new-password" required minlength="8">
                 </div>
-                <button type="submit" class="btn-primary">Update password</button>
+                <?php if ($dashboard['isAdmin']): ?><button type="submit" class="btn-primary">Update password</button><?php endif; ?>
+                </fieldset>
             </form>
             <p class="settings-note">Two-factor email verification is required at every sign-in.</p>
         </section>
@@ -78,6 +82,7 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
             <form method="POST" action="<?= route('settings.preferences') ?>" class="settings-form settings-preferences-form">
                 <?= csrf_field() ?>
                 <?= method_field('PUT') ?>
+                <fieldset style="display:contents;border:0;padding:0;" <?= $dashboard['isAdmin'] ? '' : 'disabled' ?>>
                 <div class="form-group">
                     <label for="settings-theme">Color theme</label>
                     <select class="form-control" id="settings-theme" name="theme" required>
@@ -100,7 +105,8 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
                         <option value="fil" <?= ($prefs['locale'] ?? '') === 'fil' ? 'selected' : '' ?>>Filipino</option>
                     </select>
                 </div>
-                <button type="submit" class="btn-primary">Save preferences</button>
+                <?php if ($dashboard['isAdmin']): ?><button type="submit" class="btn-primary">Save preferences</button><?php endif; ?>
+                </fieldset>
             </form>
             <p class="settings-note">Date and language choices are saved to your account. Language changes take effect where translations are available.</p>
         </section>
