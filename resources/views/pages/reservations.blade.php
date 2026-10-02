@@ -12,6 +12,7 @@
  */
 $pendingRes   = $dashboard['pendingReservations']   ?? [];
 $rejectedRes  = $dashboard['rejectedReservations']  ?? [];
+$dispatchedRes = $dashboard['dispatchedReservations'] ?? [];
 $approvedRes  = $dashboard['approvedReservations']  ?? [];
 $scheduledDis = $dashboard['scheduledDispatches']   ?? [];
 $activeDis    = $dashboard['activeDispatches']       ?? [];
@@ -249,14 +250,14 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
             <p class="eyebrow">Operations Center</p>
             <h3 style="margin:0;font-size:1.3rem;font-weight:800;color:var(--text);">Dispatch Hub</h3>
         </div>
-        <?php if ($dashboard['isAdmin']): ?><div class="hub-actions">
+        <div class="hub-actions">
             <button type="button" class="pill-button" onclick="hubModal('modal-new-reservation')">
                 + New Reservation
             </button>
-            <button type="button" class="btn-primary" style="padding:8px 18px;font-size:0.84rem;" onclick="hubModal('modal-direct-dispatch')">
+            <?php if ($dashboard['isAdmin']): ?><button type="button" class="btn-primary" style="padding:8px 18px;font-size:0.84rem;" onclick="hubModal('modal-direct-dispatch')">
                 🚐 Direct Dispatch
-            </button>
-        </div><?php endif; ?>
+            </button><?php endif; ?>
+        </div>
     </div>
 
     <?php /* ── KPI Summary Cards ───────────────────────────── */ ?>
@@ -300,7 +301,7 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
                 <thead>
                     <tr>
                         <th>Res No.</th>
-                        <th>Employee</th>
+                        <th>Requester / Employee ID</th>
                         <th>Destination</th>
                         <th>Date</th>
                         <th>Vehicle Type</th>
@@ -358,7 +359,7 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
                 <thead>
                     <tr>
                         <th>Res No.</th>
-                        <th>Employee</th>
+                        <th>Requester / Employee ID</th>
                         <th>Destination</th>
                         <th>Date</th>
                         <th>Status</th>
@@ -482,6 +483,28 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
         </div>
     </div>
 
+    <?php if (count($dispatchedRes) > 0): ?>
+    <div class="hub-section">
+        <div class="hub-section-header"><div><span class="hs-title">Dispatched Reservations</span><span class="hs-count"><?= count($dispatchedRes) ?></span></div></div>
+        <div class="table-wrapper" style="overflow-x:auto;">
+            <table>
+                <thead><tr><th>Res No.</th><th>Requester / Employee ID</th><th>Destination</th><th>Requested Date</th><th>Status</th></tr></thead>
+                <tbody>
+                    <?php foreach ($dispatchedRes as $r): ?>
+                        <tr>
+                            <td style="font-weight:700;font-size:0.8rem;"><?= htmlspecialchars($r->reservation_no ?? '—') ?></td>
+                            <td><?= htmlspecialchars($r->requester_name ?? $r->employee_id ?? '—') ?></td>
+                            <td><?= htmlspecialchars($r->destination ?? '—') ?></td>
+                            <td><?= $r->requested_date ? date('M d, Y', strtotime($r->requested_date)) : '—' ?></td>
+                            <td><span class="sp sp-active">Dispatched</span></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <?php if (count($rejectedRes) > 0): ?>
     <div class="hub-section">
         <div class="hub-section-header">
@@ -513,19 +536,22 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
 <?php /* ════════════════════════════════════════════════════
           MODAL 1 – New Reservation
        ════════════════════════════════════════════════════ */ ?>
-<?php if ($dashboard['isAdmin']): ?>
 <div id="modal-new-reservation" class="modal-backdrop" style="display:none;">
     <div class="modal-card">
         <div class="modal-header">
             <h3>New Reservation</h3>
             <button type="button" class="close-btn" onclick="closeHubModal('modal-new-reservation')">✕</button>
         </div>
-        <form method="POST" action="<?= route('reservations.store') ?>">
+        <form method="POST" action="<?= route($dashboard['isAdmin'] ? 'reservations.store' : 'users.reservations.store') ?>">
             <?= csrf_field() ?>
             <div class="modal-body">
                 <div class="form-group">
                     <label for="res-employee-id">Employee ID</label>
-                    <input class="form-control" type="text" id="res-employee-id" name="employee_id" value="<?= htmlspecialchars(old('employee_id', ''), ENT_QUOTES, 'UTF-8') ?>" required maxlength="50" placeholder="e.g. EMP-001">
+                    <?php if ($dashboard['isAdmin']): ?>
+                        <input class="form-control" type="text" id="res-employee-id" name="employee_id" value="<?= htmlspecialchars(old('employee_id', ''), ENT_QUOTES, 'UTF-8') ?>" required maxlength="50" placeholder="Employee ID">
+                    <?php else: ?>
+                        <input class="form-control" type="text" id="res-employee-id" value="<?= htmlspecialchars($dashboard['user']['name'], ENT_QUOTES, 'UTF-8') ?>" disabled>
+                    <?php endif; ?>
                 </div>
                 <div class="form-group">
                     <label for="res-destination">Destination</label>
@@ -579,6 +605,7 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
 <?php /* ════════════════════════════════════════════════════
           MODAL 2 – Direct Dispatch (no reservation)
        ════════════════════════════════════════════════════ */ ?>
+<?php if ($dashboard['isAdmin']): ?>
 <div id="modal-direct-dispatch" class="modal-backdrop" style="display:none;">
     <div class="modal-card">
         <div class="modal-header">
@@ -732,7 +759,7 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
         }
     });
 
-    <?php if ($errors->any() && old('employee_id') !== null): ?>
+    <?php if ($errors->any() && (old('employee_id') !== null || ! $dashboard['isAdmin'])): ?>
         hubModal('modal-new-reservation');
     <?php endif; ?>
 </script>
