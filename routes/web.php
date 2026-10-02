@@ -39,17 +39,18 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
     }
 
     Route::prefix('users')->middleware(UserOnly::class)->name('users.')->group(function (): void {
+        Route::get('/', fn () => redirect()->route('users.dashboard'))->name('index');
         Route::get('/dashboard', [PageController::class, 'showUser'])->defaults('page', 'dashboard')->name('dashboard');
-        foreach (['vehicles', 'reservations', 'drivers', 'fuel-logs', 'cost-analytics', 'driver-analytics', 'routes', 'reports', 'settings', 'notifications'] as $page) {
+        foreach (['vehicles', 'reservations', 'drivers', 'fuel-logs', 'cost-analytics', 'driver-analytics', 'routes', 'reports', 'settings', 'usermanagement', 'notifications'] as $page) {
             Route::get('/'.$page, [PageController::class, 'showUser'])->defaults('page', $page)->name($page);
         }
     });
 
-    // Users may submit fuel records with proof; all other write actions remain admin-only.
-    Route::post('/fuel-logs', [FleetCostController::class, 'storeFuelLog'])->name('fuel-logs.store');
+    // Viewing proof images is read-only, so authenticated Users may access it too.
+    Route::get('/fuel-logs/{fuelLog}/proof', [FleetCostController::class, 'showFuelProof'])->name('fuel-logs.proof');
 
     Route::middleware(AdminOnly::class)->group(function (): void {
-        Route::get('/fuel-logs/{fuelLog}/proof', [FleetCostController::class, 'showFuelProof'])->name('fuel-logs.proof');
+        Route::post('/fuel-logs', [FleetCostController::class, 'storeFuelLog'])->name('fuel-logs.store');
         Route::post('/usermanagement', [UserManagementController::class, 'store'])->name('usermanagement.store');
         Route::put('/usermanagement/{user}', [UserManagementController::class, 'update'])->name('usermanagement.update');
         Route::delete('/usermanagement/{user}', [UserManagementController::class, 'destroy'])->name('usermanagement.destroy');
