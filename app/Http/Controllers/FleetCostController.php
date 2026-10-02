@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 namespace App\Http\Controllers;
 
@@ -16,6 +16,8 @@ class FleetCostController extends Controller
 {
     public function storeFuelLog(Request $request): RedirectResponse
     {
+        abort_unless(in_array($request->user()?->role, ['Admin', 'User'], true), 403, 'Only admins and users can submit fuel logs.');
+
         $data = $request->validate([
             'vehicle_id' => ['required', Rule::exists('vehicles', 'id')],
             'driver_id' => ['required', Rule::exists('drivers', 'id')],

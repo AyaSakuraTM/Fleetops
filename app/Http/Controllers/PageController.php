@@ -17,6 +17,18 @@ class PageController extends Controller
 {
     public function show(string $page): View
     {
+        return $this->renderPage($page, '');
+    }
+
+    public function showUser(string $page): View
+    {
+        abort_unless(request()->user()?->role === 'User', 403, 'User access only.');
+
+        return $this->renderPage($page, '/users');
+    }
+
+    private function renderPage(string $page, string $basePath): View
+    {
         $titles = [
             'dashboard' => 'Dashboard Overview', 'vehicles' => 'Vehicles Management', 'reservations' => 'Reservations',
             'drivers' => 'Drivers', 'fuel-logs' => 'Fuel Logs', 'cost-analytics' => 'Cost Analytics',
@@ -44,7 +56,7 @@ class PageController extends Controller
             'page' => $page,
             'isAdmin' => $user->role === 'Admin',
             'title' => $titles[$page],
-            'basePath' => '',
+            'basePath' => $basePath,
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,

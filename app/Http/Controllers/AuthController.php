@@ -45,7 +45,7 @@ class AuthController extends Controller
             Auth::login($user);
             $request->session()->regenerate();
 
-            return redirect()->intended('/dashboard');
+            return redirect()->to($this->dashboardPath($user));
         }
 
         if (! $this->issueTwoFactorCode($user)) {
@@ -103,7 +103,7 @@ class AuthController extends Controller
         Auth::login($user, $remember);
         $request->session()->regenerate();
 
-        return redirect()->intended('/dashboard');
+        return redirect()->to($this->dashboardPath($user));
     }
 
     public function resendTwoFactor(Request $request): RedirectResponse
@@ -264,7 +264,12 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route('dashboard');
+        return redirect('/users/dashboard');
+    }
+
+    private function dashboardPath(User $user): string
+    {
+        return $user->role === 'Admin' ? '/dashboard' : '/users/dashboard';
     }
 
     public function destroy(Request $request): RedirectResponse
