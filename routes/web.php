@@ -37,7 +37,11 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
         Route::get('/'.$page, [PageController::class, 'show'])->defaults('page', $page)->name($page);
     }
 
+    // Users may submit fuel records with proof; all other write actions remain admin-only.
+    Route::post('/fuel-logs', [FleetCostController::class, 'storeFuelLog'])->name('fuel-logs.store');
+
     Route::middleware(AdminOnly::class)->group(function (): void {
+        Route::get('/fuel-logs/{fuelLog}/proof', [FleetCostController::class, 'showFuelProof'])->name('fuel-logs.proof');
         Route::post('/usermanagement', [UserManagementController::class, 'store'])->name('usermanagement.store');
         Route::put('/usermanagement/{user}', [UserManagementController::class, 'update'])->name('usermanagement.update');
         Route::delete('/usermanagement/{user}', [UserManagementController::class, 'destroy'])->name('usermanagement.destroy');
@@ -49,7 +53,6 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
         Route::put('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
         Route::put('/notifications/{alert}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
 
-        Route::post('/fuel-logs', [FleetCostController::class, 'storeFuelLog'])->name('fuel-logs.store');
         Route::post('/cost-analytics/maintenance', [FleetCostController::class, 'storeMaintenance'])->name('maintenance.store');
 
         // Operations workflow: reserve a vehicle, create a dispatch, then track its progress.
