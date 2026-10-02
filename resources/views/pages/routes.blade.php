@@ -62,6 +62,12 @@
         transform: rotate(-45deg);
     }
     .route-destination-pin span { transform: rotate(45deg); font-size: 0.72rem; font-weight: 900; }
+    .dispatch-item { width: 100%; color: var(--text); font: inherit; text-align: left; }
+    .dispatch-item:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+    .dispatch-item[aria-disabled="true"] { cursor: default; opacity: 0.65; }
+    .dispatch-info { min-width: 0; }
+    .dispatch-info h4, .dispatch-info p { overflow-wrap: anywhere; }
+    .dispatch-trip-status { display: block; margin-top: 4px; color: var(--muted); font-size: 0.68rem; text-align: right; }
     @media (max-width: 420px) {
         .route-options { grid-template-columns: 1fr; }
     }
@@ -242,6 +248,15 @@
                     </div>
                 </div>
             </div>
+            <section class="panel-card shadow-sm" aria-labelledby="active-dispatches-heading">
+                <div class="panel-header-sub">
+                    <h3 id="active-dispatches-heading">Active Dispatches</h3>
+                    <span class="badge-sm green" id="active-dispatch-count">—</span>
+                </div>
+                <div class="dispatch-list" id="dispatch-list-container" aria-live="polite">
+                    <div class="dispatch-empty" style="padding:1rem 0.5rem;text-align:center;color:var(--muted,#6c7a93);font-size:0.85rem;">Loading active dispatches...</div>
+                </div>
+            </section>
     </div>
 </div>
 
@@ -345,6 +360,7 @@
 <!-- Embedded JS Logic for Interactive Leaflet Map & API Integration -->
 <script>
     const basePath = "<?= $dashboard['basePath'] ?>";
+    const activeDispatchesUrl = <?= json_encode(url('/dispatches/active')) ?>;
     let map = null;
     let vehicleMarkers = {};
     let activeRoutePolyline = null;
@@ -357,6 +373,8 @@
     let routeRequestSequence = 0;
     let activeVehicleId = null;
     let fleetData = [];
+    let activeDispatches = [];
+    let activeDispatchesLoaded = false;
     let refreshInterval = null;
     let gpsWatchId = null;
     let simulatedGpsInterval = null;
@@ -367,9 +385,13 @@
     document.addEventListener('DOMContentLoaded', function () {
         initLeafletMap();
         loadFleetData();
+        loadActiveDispatches();
 
         // Auto-refresh vehicle locations every 5 seconds without page reload
-        refreshInterval = setInterval(loadFleetData, 5000);
+        refreshInterval = setInterval(function () {
+            loadFleetData();
+            loadActiveDispatches();
+        }, 5000);
 
         const globalSearchInput = document.getElementById('globalSearchInput');
         if (globalSearchInput) {
@@ -382,7 +404,7 @@
 
     function vehicleMatchesSearch(v, query) {
         if (!query) return true;
-        return [v.vehicle_code, v.plate_number, v.driver_name, v.employee_id, v.destination, v.origin, v.type]
+        return [v.dispatch_no, v.vehicle_code, v.plate_number, v.driver_name, v.employee_id, v.destination, v.origin, v.type]
             .filter(Boolean)
             .some(field => String(field).toLowerCase().includes(query));
     }
@@ -394,9 +416,8 @@
     }
 
     function applyFleetFilters() {
-        const filtered = getFilteredFleet();
         renderFleetMarkers();
-        renderDispatchList(filtered);
+        renderActiveDispatches();
     }
 
     function initLeafletMap() {
@@ -440,6 +461,7 @@
             .then(data => {
                 if (data.success && data.vehicles) {
                     fleetData = data.vehicles;
+                    renderActiveDispatches();
                     if (activeVehicleId !== null && !fleetData.some(v => v.id === activeVehicleId)) {
                         activeVehicleId = null;
                         clearRouteDisplay();
@@ -512,6 +534,7 @@
         if (!v) return;
 
         activeVehicleId = vehicleId;
+        renderActiveDispatches();
         clearRouteDisplay();
         renderFleetMarkers();
         displayVehicleDetails(v);
@@ -811,41 +834,100 @@
         if (routeOptions.length > 0) selectRoute(0);
     }
 
-    function renderDispatchList(vehicles) {
-        const container = document.getElementById('dispatch-list-container');
-        if (!container) return;
-        container.innerHTML = '';
+    function loadActiveDispatches() {
+        fetch(activeDispatchesUrl, { headers: { Accept: 'application/json' } })
+            .then(response => {
+                if (!response.ok) throw new Error('Unable to load active dispatches.');
+                return response.json();
+            })
+            .then(data => {
+                if (!data.success || !Array.isArray(data.dispatches)) {
+                    throw new Error('Invalid active dispatch response.');
+                }
+                activeDispatches = data.dispatches;
+                activeDispatchesLoaded = true;
+                renderActiveDispatches();
+            })
+            .catch(error => {
+                console.error('Error fetching active dispatches:', error);
+                const container = document.getElementById('dispatch-list-container');
+                if (container && activeDispatches.length === 0) {
+                    container.textContent = 'Unable to load active dispatches.';
+                }
+            });
+    }
 
-        if (vehicles.length === 0) {
-            container.innerHTML = '<div class="dispatch-empty" style="padding:1.5rem 0.5rem;text-align:center;color:var(--muted,#6c7a93);font-size:0.85rem;">No vehicles match your search.</div>';
-            const dispatchCount = document.getElementById('active-dispatch-count');
-            if (dispatchCount) { dispatchCount.innerText = 0; }
+    function renderActiveDispatches() {
+        const container = document.getElementById('dispatch-list-container');
+        if (!container || !activeDispatchesLoaded) return;
+        container.replaceChildren();
+
+        const count = document.getElementById('active-dispatch-count');
+        if (count) count.textContent = String(activeDispatches.length);
+
+        const visibleDispatches = activeDispatches.filter(dispatch => vehicleMatchesSearch(dispatch, currentSearchQuery));
+        if (visibleDispatches.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'dispatch-empty';
+            empty.style.cssText = 'padding:1rem 0.5rem;text-align:center;color:var(--muted,#6c7a93);font-size:0.85rem;';
+            empty.textContent = activeDispatches.length > 0 ? 'No active dispatches match your search.' : 'No active dispatches.';
+            container.appendChild(empty);
             return;
         }
 
-        let activeCount = 0;
-        vehicles.forEach(v => {
-            if (v.status !== 'Maintenance') activeCount++;
-
+        visibleDispatches.forEach(dispatch => {
+            const vehicleId = Number(dispatch.vehicle_id);
+            const vehicleIsLoaded = fleetData.some(vehicle => Number(vehicle.id) === vehicleId);
             const item = document.createElement('div');
-            item.className = `dispatch-item ${activeVehicleId === v.id ? 'selected' : ''}`;
-            item.onclick = () => selectVehicle(v.id);
+            item.className = `dispatch-item${activeVehicleId === vehicleId ? ' selected' : ''}`;
+            item.setAttribute('role', 'button');
+            item.setAttribute('tabindex', vehicleIsLoaded ? '0' : '-1');
+            item.setAttribute('aria-disabled', vehicleIsLoaded ? 'false' : 'true');
+            item.setAttribute('aria-pressed', activeVehicleId === vehicleId ? 'true' : 'false');
+            item.addEventListener('click', () => {
+                if (vehicleIsLoaded) selectVehicle(vehicleId);
+            });
+            item.addEventListener('keydown', event => {
+                if (vehicleIsLoaded && (event.key === 'Enter' || event.key === ' ')) {
+                    event.preventDefault();
+                    selectVehicle(vehicleId);
+                }
+            });
 
-            item.innerHTML = `
-                <div class="dispatch-icon ${v.route_color}">🚚</div>
-                <div class="dispatch-info">
-                    <h4>${v.vehicle_code} • ${v.driver_name}</h4>
-                    <p>To ${v.destination} • Speed: ${v.speed} km/h</p>
-                </div>
-                <div class="dispatch-status">
-                    <span class="badge-sm ${v.route_color}">${v.route_color === 'red' ? 'Delay' : (v.route_color === 'yellow' ? 'Slow' : 'Live')}</span>
-                </div>
-            `;
+            const icon = document.createElement('span');
+            icon.className = 'dispatch-icon green';
+            icon.textContent = '🚚';
+
+            const info = document.createElement('div');
+            info.className = 'dispatch-info';
+            const heading = document.createElement('h4');
+            heading.textContent = dispatch.dispatch_no || 'Dispatch';
+            const driverAndVehicle = [
+                [dispatch.driver_name, dispatch.employee_id].filter(Boolean).join(' · '),
+                [dispatch.vehicle_code, dispatch.plate_number].filter(Boolean).join(' · '),
+            ].filter(Boolean);
+            const assignment = document.createElement('p');
+            assignment.textContent = driverAndVehicle.join(' · ');
+            const route = document.createElement('p');
+            route.textContent = `${dispatch.origin || '—'} → ${dispatch.destination || '—'}`;
+            info.append(heading, assignment, route);
+
+            const status = document.createElement('div');
+            status.className = 'dispatch-status';
+            const dispatchBadge = document.createElement('span');
+            dispatchBadge.className = 'badge-sm green';
+            dispatchBadge.textContent = dispatch.status;
+            status.appendChild(dispatchBadge);
+            if (dispatch.trip_status) {
+                const tripStatus = document.createElement('span');
+                tripStatus.className = 'dispatch-trip-status';
+                tripStatus.textContent = `Trip: ${dispatch.trip_status}`;
+                status.appendChild(tripStatus);
+            }
+
+            item.append(icon, info, status);
             container.appendChild(item);
         });
-
-        const dispatchCount = document.getElementById('active-dispatch-count');
-        if (dispatchCount) { dispatchCount.innerText = activeCount; }
     }
 
     function updateDashboardAnalytics() {

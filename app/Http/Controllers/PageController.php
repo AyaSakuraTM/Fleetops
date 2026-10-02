@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Alert;
+use App\Models\Dispatch;
 use App\Models\FuelLog;
 use App\Models\MaintenanceRecord;
 use App\Models\User;
 use App\Models\Vehicle;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -24,6 +26,49 @@ class PageController extends Controller
         abort_unless(request()->user() && request()->user()->role !== 'Admin', 403, 'User access only.');
 
         return $this->renderPage($page, '/users');
+    }
+
+    public function activeDispatches(): JsonResponse
+    {
+        $user = request()->user();
+        abort_unless($user, 401);
+
+        $dispatches = Dispatch::query()
+            ->with([
+                'vehicle:id,vehicle_code,plate_number',
+                'driver:id,user_id,name,employee_id',
+                'driver.user:id,name',
+                'tripRecords' => fn ($query) => $query->orderByDesc('id'),
+            ])
+            ->whereRaw('LOWER(TRIM(dispatches.status)) = ?', ['active']);
+
+        if ($user->role !== 'Admin') {
+            $dispatches->whereHas('driver', fn ($query) => $query->where('user_id', $user->id));
+        }
+
+        return response()->json([
+            'success' => true,
+            'dispatches' => $dispatches
+                ->orderByDesc('dispatches.updated_at')
+                ->get()
+                ->map(function (Dispatch $dispatch): array {
+                    $trip = $dispatch->tripRecords->first();
+
+                    return [
+                        'dispatch_no' => $dispatch->dispatch_no,
+                        'vehicle_id' => (int) $dispatch->vehicle_id,
+                        'vehicle_code' => $dispatch->vehicle?->vehicle_code,
+                        'plate_number' => $dispatch->vehicle?->plate_number,
+                        'driver_name' => $dispatch->driver?->user?->name ?? $dispatch->driver?->name,
+                        'employee_id' => $dispatch->driver?->employee_id,
+                        'origin' => $dispatch->origin ?: $trip?->origin,
+                        'destination' => $dispatch->destination ?: $trip?->destination,
+                        'status' => $dispatch->status,
+                        'trip_status' => $trip?->status,
+                    ];
+                })
+                ->values(),
+        ]);
     }
 
     private function renderPage(string $page, string $basePath): View
