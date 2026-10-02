@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Alert;
 use App\Models\FuelLog;
-use App\Models\Driver;
 use App\Models\MaintenanceRecord;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -151,7 +150,14 @@ class PageController extends Controller
                 : [],
             'userRoles' => ['User', 'Admin'],
             'vehicleOptions' => Vehicle::orderBy('plate_number')->get(['id', 'name', 'type', 'plate_number', 'fuel_level'])->all(),
-            'driverOptions' => Driver::with('user:id,name')->orderBy('name')->get(['id', 'user_id', 'name'])->all(),
+            'driverOptions' => $page === 'fuel-logs'
+                ? DB::table('drivers')
+                    ->leftJoin('users', 'drivers.user_id', '=', 'users.id')
+                    ->select('drivers.id')
+                    ->selectRaw("COALESCE(NULLIF(users.name, ''), NULLIF(drivers.name, ''), 'Driver') as display_name")
+                    ->orderBy('display_name')
+                    ->get()
+                : [],
             'fuelLogs' => $fuelLogs,
             'quickActions' => $user->role === 'Admin'
                 ? ['Add Vehicle', 'Log Fuel', 'Create Reservation', 'Report Incident', 'Dispatch Log', 'View Routes', 'Check Drivers', 'Settings']
