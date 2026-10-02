@@ -208,10 +208,8 @@ class ApiController
             ];
         }
 
-        // Keep route geometry fixed to the TripRecord endpoints while ETA follows live GPS.
-        $routeResponse = $this->requestOpenRouteServiceRouteForTrip($trip, $loc);
+        // Keep route geometry independent of live GPS; ETA is loaded separately.
         $routeColor = $this->calculateRouteColor($trip, (float)$loc['speed']);
-        $eta = $this->computeEtaDetails($trip, $loc, $routeResponse);
         $originLocation = [
             'latitude' => (float)$trip['origin_lat'],
             'longitude' => (float)$trip['origin_lng'],
@@ -271,7 +269,7 @@ class ApiController
                 'waypoints' => $waypoints,
                 'routes' => $alternativeRoutes,
                 'traffic_delays' => $trafficDelays,
-                'eta' => $eta,
+                'eta' => null,
             ],
         ]);
     }
