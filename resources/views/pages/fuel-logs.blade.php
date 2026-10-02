@@ -4,6 +4,8 @@ $fuelCount = count($fuelLogs);
 $totalLiters = array_sum(array_map(fn ($log) => (float) preg_replace('/[^0-9.]/', '', $log['liters'] ?? '0'), $fuelLogs));
 $totalCost = array_sum(array_map(fn ($log) => (float) preg_replace('/[^0-9.]/', '', $log['cost'] ?? '0'), $fuelLogs));
 $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
+$driverOptions = $dashboard['driverOptions'] ?? collect();
+$assignedDriver = $driverOptions->first();
 ?>
 <section class="panel fuel-page">
     <div class="panel-header">
@@ -92,13 +94,22 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
             </div>
             <div class="form-group fuel-field">
                 <label for="fuel-driver">Driver</label>
+                <?php if ($dashboard['isAdmin']): ?>
                 <select class="form-control" id="fuel-driver" name="driver_id" required>
                     <option value="">Choose a driver</option>
-                    <?php foreach ($dashboard['driverOptions'] ?? [] as $driver): ?>
+                    <?php foreach ($driverOptions as $driver): ?>
                         <option value="<?= (int) $driver->id ?>" <?= (string) old('driver_id') === (string) $driver->id ? 'selected' : '' ?>><?= htmlspecialchars($driver->display_name.' ('.$driver->employee_id.')', ENT_QUOTES, 'UTF-8') ?></option>
                     <?php endforeach; ?>
                 </select>
-                <?php if (empty($dashboard['driverOptions'])): ?><small class="fuel-help">Add a driver before recording fuel.</small><?php endif; ?>
+                <?php if ($driverOptions->isEmpty()): ?><small class="fuel-help">Add a driver before recording fuel.</small><?php endif; ?>
+                <?php elseif ($assignedDriver): ?>
+                    <input type="hidden" name="driver_id" value="<?= (int) $assignedDriver->id ?>">
+                    <input class="form-control" type="text" id="fuel-driver" value="<?= htmlspecialchars($assignedDriver->display_name.' ('.$assignedDriver->employee_id.')', ENT_QUOTES, 'UTF-8') ?>" readonly aria-readonly="true">
+                    <small class="fuel-help">This fuel log will be recorded under your driver account.</small>
+                <?php else: ?>
+                    <input class="form-control" type="text" id="fuel-driver" value="No driver profile linked to your account" readonly aria-readonly="true">
+                    <small class="fuel-help">Contact an administrator to link your account to a driver profile.</small>
+                <?php endif; ?>
             </div>
             <div class="fuel-input-grid">
                 <div class="form-group fuel-field">
