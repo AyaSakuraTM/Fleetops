@@ -17,6 +17,7 @@ use App\Notifications\Channels\BrevoApiException;
 class AuthController extends Controller
 {
     private const TWO_FACTOR_VALID_MINUTES = 10;
+    private const REMEMBER_MINUTES = 7 * 24 * 60;
 
     public function create(): View { return view('login'); }
 
@@ -59,12 +60,13 @@ class AuthController extends Controller
 
     public function verifyTwoFactor(Request $request): RedirectResponse
     {
-        $request->validate(['code' => ['required', 'string']]);
+        $request->validate(['code' => ['required', 'string', 'regex:/^[0-9]{6}$/']]);
 
         $userId = $request->session()->get('two_factor.user_id');
         $user = $userId ? User::find($userId) : null;
 
-        if (! $user) {
+        if (! $user || $user->status !== 'active') {
+            $request->session()->forget('two_factor');
             return redirect()->route('login');
         }
 
@@ -81,8 +83,9 @@ class AuthController extends Controller
         $user->save();
 
         $remember = $request->session()->pull('two_factor.remember', false);
-        $request->session()->forget('two_factor.user_id');
+        $request->session()->forget('two_factor');
 
+        Auth::guard('web')->setRememberDuration(self::REMEMBER_MINUTES);
         Auth::login($user, $remember);
         $request->session()->regenerate();
 
@@ -94,11 +97,12 @@ class AuthController extends Controller
         $userId = $request->session()->get('two_factor.user_id');
         $user = $userId ? User::find($userId) : null;
 
-        if (! $user) {
+        if (! $user || $user->status !== 'active') {
+            $request->session()->forget('two_factor');
             return redirect()->route('login');
         }
 
-        if ($user->two_factor_expires_at?->subMinutes(self::TWO_FACTOR_VALID_MINUTES - 1)->isFuture()) {
+        if ($user->two_factor_expires_at?->copy()->subMinutes(self::TWO_FACTOR_VALID_MINUTES - 1)->isFuture()) {
             return back()->withErrors(['code' => 'Please wait a moment before requesting a new code.']);
         }
 
