@@ -45,7 +45,9 @@
                     <p class="eyebrow">Dispatch queue</p>
                     <h3>Pending Vehicle Reservations</h3>
                 </div>
-                <button class="pill-button">View All</button>
+                <a href="reservations">
+  <button class="pill-button">View All</button>
+            </a>
             </div>
             <div class="table-wrapper">
                 <table>
