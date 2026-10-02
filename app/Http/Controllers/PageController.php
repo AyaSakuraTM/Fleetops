@@ -248,23 +248,11 @@ class PageController extends Controller
             $trendValues[] = round($fuel + $maint, 2);
         }
 
-        $firstHalfAvg = array_sum(array_slice($trendValues, 0, 3)) / 3;
-        $secondHalfAvg = array_sum(array_slice($trendValues, 3, 3)) / 3;
-
-        if ($firstHalfAvg > $secondHalfAvg) {
-            $projectedSavings = round(($firstHalfAvg - $secondHalfAvg) * 3, 2);
-            $savingsMeta = 'Based on your declining 6-month cost trend';
-        } else {
-            $projectedSavings = 0.0;
-            $savingsMeta = 'No declining cost trend detected yet';
-        }
-
         return [
             'cards' => [
                 ['key' => 'total_transport_cost', 'title' => 'Total Transport Cost', 'value' => $totalThisMonth, 'change' => $pctChange($totalThisMonth, $totalLastMonth), 'meta' => 'vs last month'],
                 ['key' => 'fuel_expenses', 'title' => 'Fuel Expenses', 'value' => $fuelThisMonth, 'change' => $pctChange($fuelThisMonth, $fuelLastMonth), 'meta' => 'vs last month'],
                 ['key' => 'maintenance_costs', 'title' => 'Maintenance Costs', 'value' => $maintThisMonth, 'change' => $pctChange($maintThisMonth, $maintLastMonth), 'meta' => 'vs last month'],
-                ['key' => 'projected_savings', 'title' => 'Projected Savings', 'value' => $projectedSavings, 'meta' => $savingsMeta],
             ],
             'trend' => [
                 'labels' => $trendLabels,
