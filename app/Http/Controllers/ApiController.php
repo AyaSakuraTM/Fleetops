@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Support\Database;
+use App\Support\OpenRouteServiceGeocoder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use PDO;
 
 class ApiController
@@ -189,7 +191,10 @@ class ApiController
         // Geocode missing origin/destination coordinates and persist them.
         $coords = $this->ensureTripCoordinates($trip);
         if ($coords === null) {
-            $this->jsonResponse(['success' => false, 'error' => 'Unable to derive trip origin/destination coordinates.'], 400);
+            $this->jsonResponse([
+                'success' => false,
+                'error' => 'Unable to geocode the trip origin or destination. Check the application log for the failed location.',
+            ], 400);
             return;
         }
         $trip = array_merge($trip, $coords);
@@ -1223,57 +1228,7 @@ class ApiController
      */
     private function geocodeAddress(string $address): ?array
     {
-        $address = trim($address);
-        if ($address === '') {
-            return null;
-        }
-
-        $apiKey = getenv('OPENROUTESERVICE_API_KEY');
-        if ($apiKey === false || trim($apiKey) === '' || !function_exists('curl_init')) {
-            return null;
-        }
-
-        try {
-            $url = 'https://api.heigit.org/openrouteservice/geocode/search?api_key='
-                . urlencode($apiKey)
-                . '&size=1&text='
-                . urlencode($address);
-
-            $curl = curl_init($url);
-            if ($curl === false) {
-                return null;
-            }
-
-            curl_setopt_array($curl, [
-                CURLOPT_HTTPHEADER => ['Accept: application/json'],
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_CONNECTTIMEOUT => 10,
-                CURLOPT_TIMEOUT => 20,
-            ]);
-
-            $responseBody = curl_exec($curl);
-            $httpStatus = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
-            curl_close($curl);
-
-            if (!is_string($responseBody) || $httpStatus < 200 || $httpStatus >= 300) {
-                return null;
-            }
-
-            $response = json_decode($responseBody, true);
-            $features = $response['features'] ?? null;
-            if (!is_array($features) || empty($features[0]['geometry']['coordinates'])) {
-                return null;
-            }
-
-            $coords = $features[0]['geometry']['coordinates'];
-            if (!is_array($coords) || !is_numeric($coords[0] ?? null) || !is_numeric($coords[1] ?? null)) {
-                return null;
-            }
-
-            return ['lat' => (float)$coords[1], 'lng' => (float)$coords[0]];
-        } catch (\Throwable $e) {
-            return null;
-        }
+        return app(OpenRouteServiceGeocoder::class)->geocode($address);
     }
 
     /**
@@ -1284,24 +1239,46 @@ class ApiController
      */
     private function ensureTripCoordinates(array $trip): ?array
     {
+        $geocoder = app(OpenRouteServiceGeocoder::class);
         $originLat = $trip['origin_lat'] ?? null;
         $originLng = $trip['origin_lng'] ?? null;
         $destLat = $trip['dest_lat'] ?? null;
         $destLng = $trip['dest_lng'] ?? null;
 
-        $hasOrigin = is_numeric($originLat) && is_numeric($originLng);
-        $hasDest = is_numeric($destLat) && is_numeric($destLng);
+        $hasOrigin = $geocoder->hasValidCoordinates($originLat, $originLng);
+        $hasDest = $geocoder->hasValidCoordinates($destLat, $destLng);
+        $failedLocations = [];
 
         if (!$hasOrigin && !empty($trip['origin'])) {
             $geo = $this->geocodeAddress((string)$trip['origin']);
-            if ($geo) { $originLat = $geo['lat']; $originLng = $geo['lng']; $hasOrigin = true; }
+            if ($geo !== null) {
+                $originLat = $geo['lat'];
+                $originLng = $geo['lng'];
+                $hasOrigin = true;
+            }
         }
         if (!$hasDest && !empty($trip['destination'])) {
             $geo = $this->geocodeAddress((string)$trip['destination']);
-            if ($geo) { $destLat = $geo['lat']; $destLng = $geo['lng']; $hasDest = true; }
+            if ($geo !== null) {
+                $destLat = $geo['lat'];
+                $destLng = $geo['lng'];
+                $hasDest = true;
+            }
         }
 
-        if (!$hasOrigin || !$hasDest) {
+        if (!$hasOrigin) {
+            $failedLocations[] = 'origin';
+        }
+        if (!$hasDest) {
+            $failedLocations[] = 'destination';
+        }
+        if ($failedLocations !== []) {
+            Log::warning('Unable to geocode TripRecord location(s).', [
+                'trip_record_id' => $trip['id'] ?? null,
+                'failed_locations' => $failedLocations,
+                'origin' => $trip['origin'] ?? null,
+                'destination' => $trip['destination'] ?? null,
+            ]);
             return null;
         }
 

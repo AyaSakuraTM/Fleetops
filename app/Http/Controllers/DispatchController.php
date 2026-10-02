@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Dispatch;
 use App\Models\Reservation;
 use App\Models\TripRecord;
+use App\Support\OpenRouteServiceGeocoder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -48,8 +49,26 @@ class DispatchController extends Controller
             return back()->withErrors('Selected driver is currently assigned to a Scheduled or Active dispatch.');
         }
 
+        $geocoder = app(OpenRouteServiceGeocoder::class);
+        $originCoordinates = $geocoder->geocode($validated['origin']);
+        $destinationCoordinates = $geocoder->geocode($validated['destination']);
+        $geocodingErrors = [];
+        if ($originCoordinates === null) {
+            $geocodingErrors['origin'] = 'Unable to geocode the dispatch origin. Check the address and try again.';
+        }
+        if ($destinationCoordinates === null) {
+            $geocodingErrors['destination'] = 'Unable to geocode the dispatch destination. Check the address and try again.';
+        }
+        if ($geocodingErrors !== []) {
+            return back()->withErrors($geocodingErrors)->withInput();
+        }
+
         $validated['dispatch_no'] = 'DSP-' . strtoupper(uniqid());
         $validated['status'] = 'Active';
+        $validated['origin_lat'] = $originCoordinates['lat'];
+        $validated['origin_lng'] = $originCoordinates['lng'];
+        $validated['dest_lat'] = $destinationCoordinates['lat'];
+        $validated['dest_lng'] = $destinationCoordinates['lng'];
 
         DB::transaction(function () use ($validated) {
             $dispatch = Dispatch::create($validated);
@@ -59,6 +78,10 @@ class DispatchController extends Controller
                 'driver_id' => $dispatch->driver_id,
                 'origin' => $dispatch->origin,
                 'destination' => $dispatch->destination,
+                'origin_lat' => $dispatch->origin_lat,
+                'origin_lng' => $dispatch->origin_lng,
+                'dest_lat' => $dispatch->dest_lat,
+                'dest_lng' => $dispatch->dest_lng,
                 'departure_time' => now(),
                 'status' => 'Active',
             ]);
