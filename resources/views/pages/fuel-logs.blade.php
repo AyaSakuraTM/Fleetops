@@ -95,7 +95,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
                 <select class="form-control" id="fuel-driver" name="driver_id" required>
                     <option value="">Choose a driver</option>
                     <?php foreach ($dashboard['driverOptions'] ?? [] as $driver): ?>
-                        <option value="<?= (int) $driver->id ?>" <?= (string) old('driver_id') === (string) $driver->id ? 'selected' : '' ?>><?= htmlspecialchars($driver->display_name, ENT_QUOTES, 'UTF-8') ?></option>
+                        <option value="<?= (int) $driver->id ?>" <?= (string) old('driver_id') === (string) $driver->id ? 'selected' : '' ?>><?= htmlspecialchars($driver->display_name.' ('.$driver->employee_id.')', ENT_QUOTES, 'UTF-8') ?></option>
                     <?php endforeach; ?>
                 </select>
                 <?php if (empty($dashboard['driverOptions'])): ?><small class="fuel-help">Add a driver before recording fuel.</small><?php endif; ?>
