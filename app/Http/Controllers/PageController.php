@@ -73,9 +73,21 @@ class PageController extends Controller
         }
 
         $vehicleCount = DB::table('vehicles')->count();
-        $activeVehicleCount = DB::table('vehicles')->whereRaw('LOWER(status) = ?', ['active'])->count();
+        $activeVehicleCount = DB::table('vehicles')->whereRaw('LOWER(status) IN (?, ?)', ['active', 'available'])->count();
         $maintenanceVehicleCount = DB::table('vehicles')->whereRaw('LOWER(status) = ?', ['maintenance'])->count();
-        $pendingReservationCount = DB::table('reservations')->whereRaw('LOWER(status) = ?', ['pending'])->count();
+        $reservationScope = DB::table('reservations');
+        if (Schema::hasColumn('reservations', 'user_id')) {
+            $reservationScope->leftJoin('users as requesters', 'reservations.user_id', '=', 'requesters.id')
+                ->select('reservations.*', 'requesters.name as requester_name');
+        }
+        if ($user->role !== 'Admin' && Schema::hasColumn('reservations', 'user_id')) {
+            $reservationScope->where('reservations.user_id', $user->id);
+        } elseif ($user->role !== 'Admin') {
+            // Until the owner migration is applied, don't expose other users' requests.
+            $reservationScope->whereRaw('1 = 0');
+        }
+        $myReservations = (clone $reservationScope);
+        $pendingReservationCount = (clone $reservationScope)->whereRaw('LOWER(reservations.status) = ?', ['pending'])->count('reservations.id');
 
         $finance = $this->buildFinanceData();
 
@@ -107,7 +119,7 @@ class PageController extends Controller
                 ['title' => 'Transport Costs This Month', 'value' => $finance['totals']['total_this_month'], 'meta' => 'Fuel + maintenance, live', 'positive' => true, 'currency' => true, 'currency_symbol' => 'PHP '],
             ],
             'vehicleAvailability' => $page === 'dashboard' ? $this->buildVehicleAvailability() : [],
-            'reservations' => DB::table('reservations')
+            'reservations' => (clone $myReservations)
                 ->orderByDesc($reservationDateColumn)
                 ->limit(5)
                 ->get()
@@ -163,24 +175,37 @@ class PageController extends Controller
         ];
 
         if ($page === 'reservations') {
-            $dashboard['pendingReservations'] = DB::table('reservations')
-                ->whereRaw('LOWER(status) = ?', ['pending'])
-                ->orderByDesc('created_at')
+            $dashboard['pendingReservations'] = (clone $reservationScope)
+                ->whereRaw('LOWER(reservations.status) = ?', ['pending'])
+                ->orderByDesc('reservations.created_at')
                 ->get();
-            $dashboard['approvedReservations'] = DB::table('reservations')
-                ->whereRaw('LOWER(status) = ?', ['approved'])
-                ->orderByDesc('approved_at')
+            $dashboard['approvedReservations'] = (clone $reservationScope)
+                ->whereRaw('LOWER(reservations.status) = ?', ['approved'])
+                ->orderByDesc('reservations.approved_at')
                 ->get();
-            $dashboard['rejectedReservations'] = DB::table('reservations')
-                ->whereRaw('LOWER(status) = ?', ['rejected'])
-                ->orderByDesc('updated_at')
+            $dashboard['rejectedReservations'] = (clone $reservationScope)
+                ->whereRaw('LOWER(reservations.status) = ?', ['rejected'])
+                ->orderByDesc('reservations.updated_at')
+                ->get();
+            $dashboard['dispatchedReservations'] = (clone $reservationScope)
+                ->whereRaw('LOWER(reservations.status) = ?', ['dispatched'])
+                ->orderByDesc('reservations.updated_at')
                 ->get();
 
             $dispatches = DB::table('dispatches')
                 ->leftJoin('vehicles', 'dispatches.vehicle_id', '=', 'vehicles.id')
                 ->leftJoin('drivers', 'dispatches.driver_id', '=', 'drivers.id')
+                ->leftJoin('reservations', 'dispatches.reservation_id', '=', 'reservations.id')
                 ->leftJoin('users', 'drivers.user_id', '=', 'users.id')
                 ->select('dispatches.*', 'vehicles.plate_number', 'users.name as driver_name');
+
+            if ($user->role !== 'Admin') {
+                if (Schema::hasColumn('reservations', 'user_id')) {
+                    $dispatches->where('reservations.user_id', $user->id);
+                } else {
+                    $dispatches->whereRaw('1 = 0');
+                }
+            }
 
             $dashboard['scheduledDispatches'] = (clone $dispatches)
                 ->whereRaw('LOWER(dispatches.status) = ?', ['scheduled'])
@@ -191,7 +216,7 @@ class PageController extends Controller
                 ->orderByDesc('dispatches.updated_at')
                 ->get();
             $dashboard['availableVehicles'] = DB::table('vehicles')
-                ->whereRaw('LOWER(status) = ?', ['active'])
+                ->whereRaw('LOWER(status) IN (?, ?)', ['active', 'available'])
                 ->orderBy('plate_number')
                 ->get();
             $dashboard['availableDrivers'] = DB::table('drivers')
@@ -199,6 +224,10 @@ class PageController extends Controller
                 ->whereRaw('LOWER(drivers.status) = ?', ['active'])
                 ->orderBy('users.name')
                 ->get(['drivers.id', 'users.name as driver_name']);
+        }
+
+        if ($page === 'vehicles') {
+            $dashboard['vehicles'] = Vehicle::orderBy('plate_number')->get();
         }
 
         return view('layout', compact('dashboard'));
