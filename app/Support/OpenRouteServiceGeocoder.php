@@ -34,7 +34,7 @@ class OpenRouteServiceGeocoder
         }
 
         try {
-            $url = 'https://api.heigit.org/openrouteservice/geocode/search?'
+            $url = 'https://api.heigit.org/pelias/v1/search?'
                 . http_build_query([
                     'api_key' => $apiKey,
                     'size' => 1,
