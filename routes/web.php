@@ -10,6 +10,7 @@ use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\VehicleController;
+use App\Http\Middleware\PreventBackHistory;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -28,8 +29,8 @@ Route::middleware('guest')->group(function (): void {
     Route::get('/reset-password/{token}', [AuthController::class, 'showResetPassword'])->name('password.reset');
     Route::post('/reset-password', [AuthController::class, 'resetPassword'])->name('password.update');
 });
-Route::post('/logout', [AuthController::class, 'destroy'])->middleware('auth')->name('logout');
-Route::middleware('auth')->group(function (): void {
+Route::post('/logout', [AuthController::class, 'destroy'])->middleware(['auth', PreventBackHistory::class])->name('logout');
+Route::middleware(['auth', PreventBackHistory::class])->group(function (): void {
     Route::get('/dashboard', [PageController::class, 'show'])->defaults('page', 'dashboard')->name('dashboard');
     foreach (['vehicles', 'reservations', 'drivers', 'fuel-logs', 'cost-analytics', 'driver-analytics', 'routes', 'reports', 'settings', 'usermanagement', 'notifications'] as $page) {
         Route::get('/'.$page, [PageController::class, 'show'])->defaults('page', $page)->name($page);
