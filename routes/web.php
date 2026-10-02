@@ -44,6 +44,7 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
         foreach (['vehicles', 'reservations', 'drivers', 'fuel-logs', 'cost-analytics', 'driver-analytics', 'routes', 'reports', 'settings', 'usermanagement', 'notifications'] as $page) {
             Route::get('/'.$page, [PageController::class, 'showUser'])->defaults('page', $page)->name($page);
         }
+        Route::post('/fuel-logs', [FleetCostController::class, 'storeFuelLog'])->name('fuel-logs.store');
     });
 
     // Viewing proof images is read-only, so authenticated Users may access it too.
