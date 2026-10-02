@@ -12,7 +12,7 @@ $assignedDriver = $driverOptions->first();
         <div>
             <p class="eyebrow">Fleet expenses</p>
             <h3>Fuel Logs</h3>
-            <p class="fuel-intro"><?= $dashboard['isAdmin'] ? 'Record refuels and keep an eye on fuel volume and spend.' : 'Review fuel records, fuel levels, and proof photos.' ?></p>
+            <p class="fuel-intro"><?= $dashboard['isAdmin'] ? 'Record refuels and keep an eye on fuel volume and spend.' : 'Submit fuel records and review your own entries and proof photos.' ?></p>
         </div>
         <button class="pill-button" type="button" onclick="openFuelModal()">+ Log fuel</button>
     </div>
@@ -95,20 +95,21 @@ $assignedDriver = $driverOptions->first();
             <div class="form-group fuel-field">
                 <label for="fuel-driver">Driver</label>
                 <?php if ($dashboard['isAdmin']): ?>
-                <select class="form-control" id="fuel-driver" name="driver_id" required>
-                    <option value="">Choose a driver</option>
+                <select class="form-control" id="fuel-driver" name="driver_id">
+                    <option value="">No driver assigned</option>
                     <?php foreach ($driverOptions as $driver): ?>
                         <option value="<?= (int) $driver->id ?>" <?= (string) old('driver_id') === (string) $driver->id ? 'selected' : '' ?>><?= htmlspecialchars($driver->display_name.' ('.$driver->employee_id.')', ENT_QUOTES, 'UTF-8') ?></option>
                     <?php endforeach; ?>
                 </select>
-                <?php if ($driverOptions->isEmpty()): ?><small class="fuel-help">Add a driver before recording fuel.</small><?php endif; ?>
+                <?php if ($driverOptions->isEmpty()): ?><small class="fuel-help">You can still save this log under your account without a driver profile.</small><?php endif; ?>
                 <?php elseif ($assignedDriver): ?>
                     <input type="hidden" name="driver_id" value="<?= (int) $assignedDriver->id ?>">
                     <input class="form-control" type="text" id="fuel-driver" value="<?= htmlspecialchars($assignedDriver->display_name.' ('.$assignedDriver->employee_id.')', ENT_QUOTES, 'UTF-8') ?>" readonly aria-readonly="true">
                     <small class="fuel-help">This fuel log will be recorded under your driver account.</small>
                 <?php else: ?>
                     <input class="form-control" type="text" id="fuel-driver" value="No driver profile linked to your account" readonly aria-readonly="true">
-                    <small class="fuel-help">Contact an administrator to link your account to a driver profile.</small>
+                    <input type="hidden" name="driver_id" value="">
+                    <small class="fuel-help">This log will be saved under your User account; a driver profile is optional.</small>
                 <?php endif; ?>
             </div>
             <div class="fuel-input-grid">
@@ -142,7 +143,7 @@ $assignedDriver = $driverOptions->first();
             </div>
             <div class="fuel-form-actions">
                 <button type="button" class="btn-secondary" onclick="closeFuelModal()">Cancel</button>
-                <button type="submit" class="btn-primary" <?= empty($dashboard['vehicleOptions']) || empty($dashboard['driverOptions']) ? 'disabled' : '' ?>>Save fuel log</button>
+                <button type="submit" class="btn-primary" <?= empty($dashboard['vehicleOptions']) ? 'disabled' : '' ?>>Save fuel log</button>
             </div>
         </form>
     </div>
