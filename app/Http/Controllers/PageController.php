@@ -155,7 +155,12 @@ class PageController extends Controller
                     ->leftJoin('users', 'drivers.user_id', '=', 'users.id')
                     ->select('drivers.id', 'drivers.employee_id')
                     ->selectRaw("COALESCE(NULLIF(users.name, ''), NULLIF(drivers.name, ''), 'Driver') as display_name")
-                    ->orderBy('display_name')
+                    ->when($user->role !== 'Admin', fn ($query) => $query->where('drivers.user_id', $user->id))
+                    ->when(
+                        $user->role === 'Admin',
+                        fn ($query) => $query->orderBy('display_name'),
+                        fn ($query) => $query->orderBy('drivers.id'),
+                    )
                     ->get()
                 : [],
             'fuelLogs' => $fuelLogs,

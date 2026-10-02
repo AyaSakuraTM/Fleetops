@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Alert;
+use App\Models\Driver;
 use App\Models\FuelLog;
 use App\Models\MaintenanceRecord;
 use App\Models\Vehicle;
@@ -16,6 +17,21 @@ class FleetCostController extends Controller
 {
     public function storeFuelLog(Request $request): RedirectResponse
     {
+        if ($request->user()->role !== 'Admin') {
+            $driverId = Driver::where('user_id', $request->user()->id)
+                ->orderBy('id')
+                ->value('id');
+
+            if (! $driverId) {
+                return back()
+                    ->withErrors(['driver_id' => 'Your account is not linked to a driver profile. Contact an administrator.'])
+                    ->withInput();
+            }
+
+            // Never trust a driver ID submitted by a non-admin user.
+            $request->merge(['driver_id' => $driverId]);
+        }
+
         $data = $request->validate([
             'vehicle_id' => ['required', Rule::exists('vehicles', 'id')],
             'driver_id' => ['required', Rule::exists('drivers', 'id')],
@@ -32,7 +48,7 @@ class FleetCostController extends Controller
         $log = FuelLog::create($data);
         $vehicle = Vehicle::find($data['vehicle_id']);
         $vehicle->update(['fuel_level' => $data['fuel_level_after']]);
-        $driver = \App\Models\Driver::with('user')->find($data['driver_id']);
+        $driver = Driver::with('user')->find($data['driver_id']);
 
         Alert::log('â›½', 'Fuel Logged', sprintf(
             '%s: %.1fL logged for PHP %s by %s (assigned driver: %s).',
