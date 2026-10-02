@@ -27,7 +27,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
     <?php endif; ?>
 
     <div class="fuel-summary" aria-label="Summary of the latest fuel records">
-        <article class="fuel-stat"><span>Records loaded</span><strong id="fuel-count"><?= $fuelCount ?></strong><small>Latest <?= $fuelCount ?> records</small></article>
+        <article class="fuel-stat"><span>Records loaded</span><strong id="fuel-count"><?= $fuelCount ?></strong><small><?= $dashboard['isAdmin'] ? 'All saved fuel logs' : 'Your saved fuel logs' ?></small></article>
         <article class="fuel-stat"><span>Fuel volume</span><strong id="fuel-liters"><?= number_format($totalLiters, 1) ?> L</strong><small>Across loaded records</small></article>
         <article class="fuel-stat"><span>Total recorded cost</span><strong id="fuel-cost">&#8369;<?= number_format($totalCost, 2) ?></strong><small>Across loaded records</small></article>
         <article class="fuel-stat"><span>Average price</span><strong id="fuel-average"><?= $totalLiters > 0 ? '&#8369;'.number_format($averagePrice, 2) : '—' ?></strong><small>Cost per liter</small></article>
@@ -35,7 +35,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
 
     <div class="fuel-log-panel">
         <div class="fuel-table-heading">
-            <div><h4>Recent refuels</h4><p>Showing up to 30 most recent entries.</p></div>
+            <div><h4><?= $dashboard['isAdmin'] ? 'All refuels' : 'Your refuels' ?></h4><p><?= $dashboard['isAdmin'] ? 'Showing every saved entry from all accounts.' : 'Showing only entries submitted by your account.' ?></p></div>
             <label class="fuel-search-wrap" for="fuel-search">
                 <input id="fuel-search" type="search" placeholder="Search driver, plate, or date" autocomplete="off">
             </label>
@@ -62,9 +62,9 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
                         </tr>
                     <?php endforeach; ?>
                     <?php if ($fuelCount === 0): ?>
-                        <tr id="fuel-empty-row"><td colspan="<?= $dashboard['isAdmin'] ? 7 : 6 ?>" class="fuel-empty">No fuel records yet. Select "Log fuel" to record the first refuel.</td></tr>
+                        <tr id="fuel-empty-row"><td colspan="<?= $dashboard['isAdmin'] ? 7 : 6 ?>" class="fuel-empty"><?= $dashboard['isAdmin'] ? 'No fuel logs have been saved yet.' : 'You have not submitted any fuel logs yet. Select "Log fuel" to add your first record.' ?></td></tr>
                     <?php endif; ?>
-                    <tr id="fuel-no-results" hidden><td colspan="6" class="fuel-empty">No records match your search.</td></tr>
+                    <tr id="fuel-no-results" hidden><td colspan="<?= $dashboard['isAdmin'] ? 7 : 6 ?>" class="fuel-empty">No records match your search.</td></tr>
                 </tbody>
             </table>
         </div>
