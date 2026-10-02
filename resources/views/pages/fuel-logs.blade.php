@@ -5,7 +5,6 @@ $totalLiters = array_sum(array_map(fn ($log) => (float) preg_replace('/[^0-9.]/'
 $totalCost = array_sum(array_map(fn ($log) => (float) preg_replace('/[^0-9.]/', '', $log['cost'] ?? '0'), $fuelLogs));
 $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
 $driverOptions = $dashboard['driverOptions'] ?? collect();
-$assignedDriver = $driverOptions->first();
 ?>
 <section class="panel fuel-page">
     <div class="panel-header">
@@ -102,14 +101,10 @@ $assignedDriver = $driverOptions->first();
                     <?php endforeach; ?>
                 </select>
                 <?php if ($driverOptions->isEmpty()): ?><small class="fuel-help">You can still save this log under your account without a driver profile.</small><?php endif; ?>
-                <?php elseif ($assignedDriver): ?>
-                    <input type="hidden" name="driver_id" value="<?= (int) $assignedDriver->id ?>">
-                    <input class="form-control" type="text" id="fuel-driver" value="<?= htmlspecialchars($assignedDriver->display_name.' ('.$assignedDriver->employee_id.')', ENT_QUOTES, 'UTF-8') ?>" readonly aria-readonly="true">
-                    <small class="fuel-help">This fuel log will be recorded under your driver account.</small>
                 <?php else: ?>
-                    <input class="form-control" type="text" id="fuel-driver" value="No driver profile linked to your account" readonly aria-readonly="true">
+                    <input class="form-control" type="text" id="fuel-driver" value="<?= htmlspecialchars($dashboard['user']['name'], ENT_QUOTES, 'UTF-8') ?> (you)" readonly aria-readonly="true">
                     <input type="hidden" name="driver_id" value="">
-                    <small class="fuel-help">This log will be saved under your User account; a driver profile is optional.</small>
+                    <small class="fuel-help">You will be listed as the driver for this refuel. The log is saved under your account.</small>
                 <?php endif; ?>
             </div>
             <div class="fuel-input-grid">
