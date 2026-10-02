@@ -36,7 +36,7 @@
                         <th>TYPE</th>
                         <th>BRAND & MODEL</th>
                         <th>STATUS</th>
-                        <th class="text-right">ACTIONS</th>
+                        <th class="text-right"><?= $dashboard['isAdmin'] ? 'ACTIONS' : 'VIEW' ?></th>
                     </tr>
                 </thead>
                 <tbody id="vehicle-table-body"></tbody>
@@ -142,7 +142,7 @@
 </div>
 
 <!-- Modal: Log Service Maintenance -->
-<div id="log-service-modal" class="modal-backdrop" style="display: none;">
+<?php if ($dashboard['isAdmin']): ?><div id="log-service-modal" class="modal-backdrop" style="display: none;">
     <div class="modal-card">
         <div class="modal-header">
             <h3>🔧 Log Vehicle Service Maintenance</h3>
@@ -177,7 +177,7 @@
             </div>
         </form>
     </div>
-</div>
+</div><?php endif; ?>
 
 <!-- CSS Styling for Fleet Command Vehicles View -->
 <style>
@@ -419,6 +419,8 @@
 
 <!-- JavaScript Logic for Fleet Command Operations -->
 <script>
+const basePath = <?= json_encode($dashboard['basePath']) ?>;
+
 function filterByStatus(statusKey, btnElem) {
     document.querySelectorAll('.status-filter-btn').forEach(btn => btn.classList.remove('active'));
     btnElem.classList.add('active');

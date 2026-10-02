@@ -67,7 +67,7 @@ $reportData = [
                 <div><span>Pending reservations</span><strong><?= number_format((int) $pendingReservations) ?></strong></div>
             </div>
             <div class="report-card-actions">
-                <a href="<?= route('vehicles') ?>">View vehicles <span aria-hidden="true">→</span></a>
+                <a href="<?= htmlspecialchars($dashboard['basePath'] . '/vehicles') ?>">View vehicles <span aria-hidden="true">→</span></a>
                 <button type="button" class="report-download" onclick="downloadReport('fleet')">Export CSV</button>
             </div>
         </article>
@@ -93,7 +93,7 @@ $reportData = [
                 <p class="report-empty">No driver score data is available yet.</p>
             <?php endif; ?>
             <div class="report-card-actions">
-                <a href="<?= route('driver-analytics') ?>">View driver analytics <span aria-hidden="true">→</span></a>
+                <a href="<?= htmlspecialchars($dashboard['basePath'] . '/driver-analytics') ?>">View driver analytics <span aria-hidden="true">→</span></a>
                 <button type="button" class="report-download" onclick="downloadReport('drivers')">Export CSV</button>
             </div>
         </article>
@@ -124,8 +124,8 @@ $reportData = [
                 <?php endforeach; ?>
             </div>
             <div class="report-card-actions">
-                <a href="<?= route('cost-analytics') ?>">Open cost analytics <span aria-hidden="true">→</span></a>
-                <a href="<?= route('fuel-logs') ?>">Review fuel logs <span aria-hidden="true">→</span></a>
+                <a href="<?= htmlspecialchars($dashboard['basePath'] . '/cost-analytics') ?>">Open cost analytics <span aria-hidden="true">→</span></a>
+                <a href="<?= htmlspecialchars($dashboard['basePath'] . '/fuel-logs') ?>">Review fuel logs <span aria-hidden="true">→</span></a>
                 <button type="button" class="report-download" onclick="downloadReport('costs')">Export CSV</button>
             </div>
         </article>
