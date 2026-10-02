@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Alert;
 use App\Models\FuelLog;
+use App\Models\Driver;
 use App\Models\MaintenanceRecord;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -93,14 +94,19 @@ class PageController extends Controller
                 ? User::orderBy('name')->get(['id', 'name', 'email', 'role', 'status'])->all()
                 : [],
             'userRoles' => ['Admin', 'Manager', 'Dispatcher', 'Accountant', 'Staff'],
-            'vehicleOptions' => Vehicle::orderBy('name')->get(['id', 'name', 'type'])->all(),
+            'vehicleOptions' => Vehicle::orderBy('plate_number')->get(['id', 'name', 'type', 'plate_number', 'fuel_level'])->all(),
+            'driverOptions' => Driver::with('user:id,name')->orderBy('name')->get(['id', 'user_id', 'name'])->all(),
             'fuelLogs' => $page === 'fuel-logs'
-                ? FuelLog::with('vehicle:id,name')
+                ? FuelLog::with(['vehicle:id,name,plate_number', 'driver.user:id,name'])
                     ->orderByDesc('logged_at')
                     ->limit(30)
                     ->get()
                     ->map(fn (FuelLog $log): array => [
                         'vehicle' => $log->vehicle->name ?? 'Unknown',
+                        'plate_number' => $log->vehicle->plate_number ?? 'Unknown',
+                        'driver' => $log->driver->user->name ?? $log->driver->name ?? 'Unknown',
+                        'fuel_level_before' => $log->fuel_level_before,
+                        'fuel_level_after' => $log->fuel_level_after,
                         'logged_at' => $log->logged_at->format('M d, Y'),
                         'liters' => number_format($log->liters, 1).'L',
                         'cost' => number_format($log->cost, 2),
