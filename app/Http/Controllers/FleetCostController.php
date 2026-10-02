@@ -21,20 +21,14 @@ class FleetCostController extends Controller
             $driverId = Driver::where('user_id', $request->user()->id)
                 ->orderBy('id')
                 ->value('id');
-
-            if (! $driverId) {
-                return back()
-                    ->withErrors(['driver_id' => 'Your account is not linked to a driver profile. Contact an administrator.'])
-                    ->withInput();
-            }
-
-            // Never trust a driver ID submitted by a non-admin user.
+            // Associate the real driver record when one exists, but let any User
+            // submit a log under their own account even without a driver profile.
             $request->merge(['driver_id' => $driverId]);
         }
 
         $data = $request->validate([
             'vehicle_id' => ['required', Rule::exists('vehicles', 'id')],
-            'driver_id' => ['required', Rule::exists('drivers', 'id')],
+            'driver_id' => ['nullable', Rule::exists('drivers', 'id')],
             'liters' => ['required', 'numeric', 'min:0.1', 'max:2000'],
             'cost' => ['required', 'numeric', 'min:0', 'max:1000000'],
             'fuel_level_before' => ['required', 'numeric', 'between:0,100'],
@@ -48,7 +42,7 @@ class FleetCostController extends Controller
         $log = FuelLog::create($data);
         $vehicle = Vehicle::find($data['vehicle_id']);
         $vehicle->update(['fuel_level' => $data['fuel_level_after']]);
-        $driver = Driver::with('user')->find($data['driver_id']);
+        $driver = isset($data['driver_id']) ? Driver::with('user')->find($data['driver_id']) : null;
 
         Alert::log('â›½', 'Fuel Logged', sprintf(
             '%s: %.1fL logged for PHP %s by %s (assigned driver: %s).',
@@ -56,7 +50,7 @@ class FleetCostController extends Controller
             $log->liters,
             number_format($log->cost, 2),
             $request->user()->name,
-            $driver->user->name ?? $driver->name ?? 'Unknown'
+            $driver?->user?->name ?? $driver?->name ?? 'No driver assigned'
         ));
 
         return back()->with('status', 'Fuel log recorded.');

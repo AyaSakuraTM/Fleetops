@@ -50,7 +50,7 @@ class PageController extends Controller
                 ->map(fn (FuelLog $log): array => [
                     'vehicle' => $log->vehicle->name ?? 'Unknown',
                     'plate_number' => $log->vehicle->plate_number ?? 'Unknown',
-                    'driver' => $log->driver->user->name ?? $log->driver->name ?? 'Unknown',
+                    'driver' => $log->driver?->user?->name ?? $log->driver?->name ?? 'No driver assigned',
                     'submitted_by' => $log->user->name ?? 'Legacy / deleted user',
                     'fuel_level_before' => $log->fuel_level_before,
                     'fuel_level_after' => $log->fuel_level_after,
