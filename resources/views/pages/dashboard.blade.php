@@ -97,7 +97,7 @@
             <div class="list-stack">
                 <?php foreach ($dashboard['alerts'] as $alert): ?>
                     <div class="list-item">
-                        <div class="list-icon"><?= htmlspecialchars($alert['icon']) ?></div>
+                        <div class="list-icon" aria-hidden="true"><?php if (($alert['title'] ?? '') === 'Fuel Logged'): ?>&#x26FD;<?php elseif (($alert['title'] ?? '') === 'Maintenance Logged'): ?>&#x1F527;<?php else: ?><?= htmlspecialchars($alert['icon']) ?><?php endif; ?></div>
                         <div>
                             <h4><?= htmlspecialchars($alert['title']) ?></h4>
                             <p><?= htmlspecialchars($alert['detail']) ?></p>
