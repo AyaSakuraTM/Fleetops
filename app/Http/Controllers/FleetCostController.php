@@ -18,12 +18,9 @@ class FleetCostController extends Controller
     public function storeFuelLog(Request $request): RedirectResponse
     {
         if ($request->user()->role !== 'Admin') {
-            $driverId = Driver::where('user_id', $request->user()->id)
-                ->orderBy('id')
-                ->value('id');
-            // Associate the real driver record when one exists, but let any User
-            // submit a log under their own account even without a driver profile.
-            $request->merge(['driver_id' => $driverId]);
+            // Regular users act as the driver for their own fuel log. The user_id
+            // records their account; do not let the browser assign another driver.
+            $request->merge(['driver_id' => null]);
         }
 
         $data = $request->validate([
@@ -43,14 +40,17 @@ class FleetCostController extends Controller
         $vehicle = Vehicle::find($data['vehicle_id']);
         $vehicle->update(['fuel_level' => $data['fuel_level_after']]);
         $driver = isset($data['driver_id']) ? Driver::with('user')->find($data['driver_id']) : null;
+        $driverName = $driver?->user?->name
+            ?? $driver?->name
+            ?? ($request->user()->role !== 'Admin' ? $request->user()->name : 'No driver assigned');
 
         Alert::log('â›½', 'Fuel Logged', sprintf(
-            '%s: %.1fL logged for PHP %s by %s (assigned driver: %s).',
+            '%s: %.1fL logged for PHP %s by %s (driver: %s).',
             $vehicle->name ?? 'Vehicle',
             $log->liters,
             number_format($log->cost, 2),
             $request->user()->name,
-            $driver?->user?->name ?? $driver?->name ?? 'No driver assigned'
+            $driverName
         ));
 
         return back()->with('status', 'Fuel log recorded.');
