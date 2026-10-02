@@ -47,7 +47,6 @@ class PageController extends Controller
             }
 
             $fuelLogs = $fuelLogQuery->orderByDesc('logged_at')
-                ->limit(30)
                 ->get()
                 ->map(fn (FuelLog $log): array => [
                     'vehicle' => $log->vehicle->name ?? 'Unknown',
