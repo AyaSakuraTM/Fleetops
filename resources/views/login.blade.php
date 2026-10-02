@@ -41,6 +41,8 @@
         input { width: 100%; min-height: 48px; padding: .75rem 2.9rem; border: 1px solid var(--border); border-radius: .65rem; outline: none; color: var(--text); background: var(--surface); font: inherit; font-size: .9rem; transition: border-color .18s ease, box-shadow .18s ease; }
         input::placeholder { color: #9aa6b9; }
         input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+        .remember-option { display: flex; align-items: center; gap: .6rem; cursor: pointer; }
+        .remember-option input { width: 18px; height: 18px; min-height: 0; padding: 0; margin: 0; accent-color: var(--accent); }
         .password-toggle { position: absolute; top: 50%; right: .45rem; display: grid; width: 38px; height: 38px; padding: 0; place-items: center; border: 0; border-radius: .45rem; color: var(--muted); background: transparent; cursor: pointer; transform: translateY(-50%); }
         .password-toggle:hover { color: var(--accent); background: var(--accent-soft); }
         .password-toggle svg { width: 19px; height: 19px; }
@@ -113,6 +115,10 @@
                         <button class="password-toggle" type="button" id="passwordToggle" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path><circle cx="12" cy="12" r="2.5"></circle></svg></button>
                     </div>
                 </div>
+                <label class="remember-option" for="remember">
+                    <input type="checkbox" id="remember" name="remember" value="1" @checked(old('remember'))>
+                    <span>Remember me for 7 days</span>
+                </label>
                 <button type="submit" class="login-button">Sign in</button>
             </form>
         </section>
