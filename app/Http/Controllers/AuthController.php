@@ -44,7 +44,6 @@ class AuthController extends Controller
         }
 
         $request->session()->put('two_factor.user_id', $user->id);
-        $request->session()->put('two_factor.remember', $request->boolean('remember'));
 
         return redirect()->route('two-factor.challenge');
     }
@@ -82,7 +81,7 @@ class AuthController extends Controller
         $user->two_factor_expires_at = null;
         $user->save();
 
-        $remember = $request->session()->pull('two_factor.remember', false);
+        $remember = $request->boolean('remember');
         $request->session()->forget('two_factor');
 
         Auth::guard('web')->setRememberDuration(self::REMEMBER_MINUTES);
