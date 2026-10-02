@@ -537,7 +537,6 @@
             <div>
                 <p class="eyebrow">Fleet operations overview</p>
                 <h1><?= htmlspecialchars($dashboard['title']) ?></h1>
-                <p class="hero-copy">You have 12 dispatches ready, 198 vehicles active, and 3 critical alerts to review.</p>
             </div>
             <div class="hero-badge">Live • 24/7 Operations</div>
         </section>
