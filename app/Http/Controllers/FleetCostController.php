@@ -28,6 +28,7 @@ class FleetCostController extends Controller
         ]);
 
         $data['receipt_image'] = $request->file('receipt_image')->store('fuel-logs/proofs', 'local');
+        $data['user_id'] = $request->user()->id;
         $log = FuelLog::create($data);
         $vehicle = Vehicle::find($data['vehicle_id']);
         $vehicle->update(['fuel_level' => $data['fuel_level_after']]);
@@ -47,6 +48,8 @@ class FleetCostController extends Controller
 
     public function showFuelProof(FuelLog $fuelLog): BinaryFileResponse
     {
+        $user = request()->user();
+        abort_unless($user && ($user->role === 'Admin' || (int) $fuelLog->user_id === (int) $user->id), 404);
         abort_unless($fuelLog->receipt_image && Storage::disk('local')->exists($fuelLog->receipt_image), 404);
 
         return response()->file(Storage::disk('local')->path($fuelLog->receipt_image));

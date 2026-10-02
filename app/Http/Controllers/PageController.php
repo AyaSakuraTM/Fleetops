@@ -39,6 +39,40 @@ class PageController extends Controller
         abort_unless(isset($titles[$page]), 404);
 
         $user = request()->user();
+        $fuelLogs = [];
+        if ($page === 'fuel-logs') {
+            $fuelLogQuery = FuelLog::with(['user:id,name', 'vehicle:id,name,plate_number', 'driver.user:id,name']);
+            if ($user->role !== 'Admin') {
+                $fuelLogQuery->where('user_id', $user->id);
+            }
+
+            $fuelLogs = $fuelLogQuery->orderByDesc('logged_at')
+                ->limit(30)
+                ->get()
+                ->map(fn (FuelLog $log): array => [
+                    'vehicle' => $log->vehicle->name ?? 'Unknown',
+                    'plate_number' => $log->vehicle->plate_number ?? 'Unknown',
+                    'driver' => $log->driver->user->name ?? $log->driver->name ?? 'Unknown',
+                    'submitted_by' => $log->user->name ?? 'Legacy / deleted user',
+                    'fuel_level_before' => $log->fuel_level_before,
+                    'fuel_level_after' => $log->fuel_level_after,
+                    'receipt_image' => $log->receipt_image,
+                    'id' => $log->id,
+                    'logged_at' => $log->logged_at->format('M d, Y'),
+                    'liters' => number_format($log->liters, 1).'L',
+                    'cost' => number_format($log->cost, 2),
+                ])
+                ->all();
+        }
+        $alertsQuery = DB::table('alerts')->orderByDesc('created_at');
+        $unreadAlertsQuery = Alert::whereNull('read_at');
+        $notificationsQuery = Alert::orderByDesc('created_at');
+        if ($user->role !== 'Admin') {
+            $alertsQuery->where('title', '<>', 'Fuel Logged');
+            $unreadAlertsQuery->where('title', '<>', 'Fuel Logged');
+            $notificationsQuery->where('title', '<>', 'Fuel Logged');
+        }
+
         $vehicleCount = DB::table('vehicles')->count();
         $activeVehicleCount = DB::table('vehicles')->whereRaw('LOWER(status) = ?', ['active'])->count();
         $maintenanceVehicleCount = DB::table('vehicles')->whereRaw('LOWER(status) = ?', ['maintenance'])->count();
@@ -86,9 +120,7 @@ class PageController extends Controller
                     'status' => ucfirst($reservation->status),
                 ])
                 ->all(),
-            'alerts' => DB::table('alerts')
-                ->orderByDesc('created_at')
-                ->limit(4)
+            'alerts' => $alertsQuery->limit(4)
                 ->get(['icon', 'title', 'detail'])
                 ->map(fn (object $alert): array => (array) $alert)
                 ->all(),
@@ -109,33 +141,14 @@ class PageController extends Controller
             'userRoles' => ['User', 'Admin'],
             'vehicleOptions' => Vehicle::orderBy('plate_number')->get(['id', 'name', 'type', 'plate_number', 'fuel_level'])->all(),
             'driverOptions' => Driver::with('user:id,name')->orderBy('name')->get(['id', 'user_id', 'name'])->all(),
-            'fuelLogs' => $page === 'fuel-logs'
-                ? FuelLog::with(['vehicle:id,name,plate_number', 'driver.user:id,name'])
-                    ->orderByDesc('logged_at')
-                    ->limit(30)
-                    ->get()
-                    ->map(fn (FuelLog $log): array => [
-                        'vehicle' => $log->vehicle->name ?? 'Unknown',
-                        'plate_number' => $log->vehicle->plate_number ?? 'Unknown',
-                        'driver' => $log->driver->user->name ?? $log->driver->name ?? 'Unknown',
-                        'fuel_level_before' => $log->fuel_level_before,
-                        'fuel_level_after' => $log->fuel_level_after,
-                        'receipt_image' => $log->receipt_image,
-                        'id' => $log->id,
-                        'logged_at' => $log->logged_at->format('M d, Y'),
-                        'liters' => number_format($log->liters, 1).'L',
-                        'cost' => number_format($log->cost, 2),
-                    ])
-                    ->all()
-                : [],
+            'fuelLogs' => $fuelLogs,
             'quickActions' => $user->role === 'Admin'
                 ? ['Add Vehicle', 'Log Fuel', 'Create Reservation', 'Report Incident', 'Dispatch Log', 'View Routes', 'Check Drivers', 'Settings']
                 : ['View Vehicles', 'Review Fuel Logs', 'View Reservations', 'View Routes', 'Review Drivers', 'View Reports', 'View Notifications', 'Settings'],
             'finance' => $finance,
-            'unreadNotifications' => Alert::whereNull('read_at')->count(),
+            'unreadNotifications' => $unreadAlertsQuery->count(),
             'notifications' => $page === 'notifications'
-                ? Alert::orderByDesc('created_at')
-                    ->limit(30)
+                ? $notificationsQuery->limit(30)
                     ->get()
                     ->map(fn (Alert $alert): array => [
                         'id' => $alert->id,
