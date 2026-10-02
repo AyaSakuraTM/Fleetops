@@ -13,6 +13,71 @@ class TwoFactorLoginTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_remember_me_is_only_issued_after_otp_and_expires_in_seven_days(): void
+    {
+        $this->freezeTime();
+        $this->fakeBrevoResponse(201);
+        $user = User::factory()->create(['status' => 'active']);
+        $cookieName = auth('web')->getRecallerName();
+
+        $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+            'remember' => '1',
+        ])->assertRedirect(route('two-factor.challenge'))->assertCookieMissing($cookieName);
+        $this->assertGuest();
+
+        $response = $this->post(route('two-factor.verify'), ['code' => $user->fresh()->two_factor_code]);
+        $response->assertRedirect('/dashboard')->assertCookie($cookieName);
+        $this->assertAuthenticatedAs($user);
+        $cookie = collect($response->headers->getCookies())->first(fn ($cookie) => $cookie->getName() === $cookieName);
+        $this->assertSame(now()->addDays(7)->getTimestamp(), $cookie->getExpiresTime());
+        $this->assertNull($user->fresh()->two_factor_code);
+        $response->assertSessionMissing('two_factor');
+    }
+
+    public function test_otp_login_without_remember_does_not_issue_a_remember_cookie(): void
+    {
+        $user = User::factory()->create(['status' => 'active']);
+        $user->two_factor_code = '123456';
+        $user->two_factor_expires_at = now()->addMinutes(10);
+        $user->save();
+
+        $this->withSession(['two_factor.user_id' => $user->id])
+            ->post(route('two-factor.verify'), ['code' => '123456'])
+            ->assertRedirect('/dashboard')
+            ->assertCookieMissing(auth('web')->getRecallerName());
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_expired_code_cannot_sign_in_or_create_a_remember_cookie(): void
+    {
+        $user = User::factory()->create(['status' => 'active']);
+        $user->two_factor_code = '123456';
+        $user->two_factor_expires_at = now()->subMinute();
+        $user->save();
+
+        $this->withSession(['two_factor.user_id' => $user->id, 'two_factor.remember' => true])
+            ->post(route('two-factor.verify'), ['code' => '123456'])
+            ->assertSessionHasErrors('code')
+            ->assertCookieMissing(auth('web')->getRecallerName());
+        $this->assertGuest();
+    }
+
+    public function test_user_deactivated_during_otp_challenge_cannot_sign_in(): void
+    {
+        $user = User::factory()->create(['status' => 'inactive']);
+        $user->two_factor_code = '123456';
+        $user->two_factor_expires_at = now()->addMinutes(10);
+        $user->save();
+
+        $this->withSession(['two_factor.user_id' => $user->id])
+            ->post(route('two-factor.verify'), ['code' => '123456'])
+            ->assertRedirect(route('login'))
+            ->assertSessionMissing('two_factor');
+        $this->assertGuest();
+    }
+
     public function test_active_admin_login_sends_a_code_and_redirects_to_the_two_factor_challenge(): void
     {
         $this->assertLoginStartsTwoFactorForRole('Admin');
