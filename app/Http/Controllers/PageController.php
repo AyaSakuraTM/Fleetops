@@ -108,6 +108,8 @@ class PageController extends Controller
                         'driver' => $log->driver->user->name ?? $log->driver->name ?? 'Unknown',
                         'fuel_level_before' => $log->fuel_level_before,
                         'fuel_level_after' => $log->fuel_level_after,
+                        'receipt_image' => $log->receipt_image,
+                        'id' => $log->id,
                         'logged_at' => $log->logged_at->format('M d, Y'),
                         'liters' => number_format($log->liters, 1).'L',
                         'cost' => number_format($log->cost, 2),
