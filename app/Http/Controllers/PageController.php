@@ -22,7 +22,7 @@ class PageController extends Controller
 
     public function showUser(string $page): View
     {
-        abort_unless(request()->user()?->role === 'User', 403, 'User access only.');
+        abort_unless(request()->user() && request()->user()->role !== 'Admin', 403, 'User access only.');
 
         return $this->renderPage($page, '/users');
     }
@@ -128,7 +128,9 @@ class PageController extends Controller
                     ])
                     ->all()
                 : [],
-            'quickActions' => ['Add Vehicle', 'Log Fuel', 'Create Reservation', 'Report Incident', 'Dispatch Log', 'View Routes', 'Check Drivers', 'Settings'],
+            'quickActions' => $user->role === 'Admin'
+                ? ['Add Vehicle', 'Log Fuel', 'Create Reservation', 'Report Incident', 'Dispatch Log', 'View Routes', 'Check Drivers', 'Settings']
+                : ['View Vehicles', 'Review Fuel Logs', 'View Reservations', 'View Routes', 'Review Drivers', 'View Reports', 'View Notifications', 'Settings'],
             'finance' => $finance,
             'unreadNotifications' => Alert::whereNull('read_at')->count(),
             'notifications' => $page === 'notifications'
