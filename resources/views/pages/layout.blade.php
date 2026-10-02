@@ -388,21 +388,22 @@
         .sidebar.collapsed .sb-user { justify-content: flex-start; padding: 14px 16px; }
         .sidebar-toggle {
           display: inline-flex !important;
+          flex-direction: column !important;
           width: 42px !important;
           height: 42px !important;
           background: #1a2747 !important;
           border-radius: 12px !important;
-          align-items: center;
-          justify-content: center;
+          align-items: center !important;
+          justify-content: center !important;
           padding: 0 !important;
           flex-shrink: 0;
         }
         .sidebar-toggle span { width: 20px; height: 2px; background: #fff; margin: 2px 0; display: block; border-radius: 999px; }
         .sidebar-overlay { display: block; }
         .app-shell.sidebar-open .sidebar-overlay { opacity: 1; visibility: visible; }
-        .topbar { flex-wrap: wrap !important; gap: 12px !important; }
-        .search-bar { flex: 1 1 100% !important; min-width: 0 !important; }
-        .topbar-actions { width: 100%; justify-content: flex-end; }
+        .topbar { flex-wrap: nowrap !important; gap: 10px !important; align-items: center !important; margin-bottom: 16px !important; }
+        .search-bar { flex: 1 1 auto !important; min-width: 0 !important; width: auto !important; }
+        .topbar-actions { width: auto !important; justify-content: flex-end; flex-shrink: 0; }
         .hero-card { flex-direction: column !important; align-items: stretch !important; padding: 20px !important; }
         .availability-layout { grid-template-columns: 1fr !important; }
         .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
@@ -540,7 +541,7 @@
             $navItems = [
                 'dashboard'       => ['label' => 'Dashboard',       'icon' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>'],
                 'vehicles'        => ['label' => 'Fleet Command',   'icon' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>'],
-                'reservations'    => ['label' => 'Dispatch Hub',    'icon' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>', 'badge' => 3],
+                'reservations'    => ['label' => 'Dispatch Hub',    'icon' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>'],
                 'driver-analytics'=> ['label' => 'Driver Analytics','icon' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>'],
                 'fuel-logs'       => ['label' => 'Fuel Monitor',    'icon' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22V9a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v13"/><path d="M14 7v4a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2V9l-3-5-3 3z"/><line x1="3" y1="22" x2="14" y2="22"/></svg>'],
                 'cost-analytics'  => ['label' => 'Cost Analytics',  'icon' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>'],
@@ -552,6 +553,7 @@
             ];
             foreach ($navItems as $route => $item):
                 if ($route === 'usermanagement' && empty($dashboard['isAdmin'])) continue;
+                if ($route === 'driver-analytics') continue; // Hidden per admin/staff request
                 $href = $dashboard['basePath'] . ($route === 'dashboard' ? '/dashboard' : '/' . $route);
                 $isActive = $dashboard['page'] === $route;
             ?>
@@ -624,9 +626,7 @@
             <div>
                 <p class="eyebrow">Fleet operations overview</p>
                 <h1><?= htmlspecialchars($dashboard['title']) ?></h1>
-                <p class="hero-copy">You have 12 dispatches ready, 198 vehicles active, and 3 critical alerts to review.</p>
             </div>
-            <div class="hero-badge">Live • 24/7 Operations</div>
         </section>
 
         @include('pages.'.$dashboard['page'], ['dashboard' => $dashboard])

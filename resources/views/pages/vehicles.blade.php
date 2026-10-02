@@ -389,6 +389,10 @@
 .form-group.full-width {
     grid-column: span 2;
 }
+@media (max-width: 560px) {
+    .form-grid, .details-grid { grid-template-columns: 1fr; }
+    .form-group.full-width { grid-column: span 1; }
+}
 .details-summary-header h2 { margin: 0; font-size: 1.3rem; }
 .badge-code-lg { background: #dbeafe; color: #1e40af; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 0.8rem; }
 .plate-text-lg { margin: 4px 0 0; color: #64748b; font-size: 0.9rem; font-weight: 600; }

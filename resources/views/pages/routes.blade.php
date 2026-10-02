@@ -65,6 +65,31 @@
     @media (max-width: 420px) {
         .route-options { grid-template-columns: 1fr; }
     }
+    /* Compact Smart Routing on phones */
+    @media (max-width: 768px) {
+        .tracking-control-bar { padding: 12px 16px; gap: 8px; }
+        .control-left h2 { font-size: 1.05rem; }
+        .control-right .btn-primary, .control-right .btn-secondary { padding: 8px 12px; font-size: 0.8rem; }
+        .map-container-grid { gap: 12px; }
+        .panel-card { padding: 14px; }
+        .gps-metrics-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+        .tracking-analytics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .analytics-card { padding: 10px 12px; gap: 8px; }
+        .analytics-icon { width: 34px; height: 34px; border-radius: 10px; font-size: 1rem; }
+        .analytics-label { font-size: 0.65rem; }
+        .analytics-value { font-size: 1.05rem; }
+        .analytics-sub { font-size: 0.68rem; }
+        .leaflet-map-canvas { height: 320px !important; }
+        .map-filters, .map-action-buttons { flex-wrap: wrap; }
+    }
+    @media (max-width: 420px) {
+        .tracking-analytics-grid { grid-template-columns: 1fr; }
+        .tracking-control-bar { flex-direction: column; align-items: stretch; }
+        .control-right { flex-direction: column; }
+        .leaflet-map-canvas { height: 280px !important; }
+    }
 </style>
 
 <div class="tracking-module-wrapper">
@@ -180,9 +205,9 @@
                     <!-- Vehicle Info Header -->
                     <div class="vehicle-card-header">
                         <div>
-                            <span class="badge-code" id="info-vehicle-code">TRK-101</span>
-                            <h3 id="info-vehicle-type">Heavy Cargo Truck</h3>
-                            <p class="plate-text" id="info-plate">NKI-8821</p>
+                            <span class="badge-code" id="info-vehicle-code">—</span>
+                            <h3 id="info-vehicle-type">Select a vehicle</h3>
+                            <p class="plate-text" id="info-plate">Plate: —</p>
                         </div>
                         <div class="status-badge" id="info-status-badge">Active</div>
                     </div>
@@ -193,15 +218,15 @@
                     <div class="info-grid">
                         <div class="info-item">
                             <span class="info-label">Driver Name</span>
-                            <strong class="info-val" id="info-driver">Harvey Villarin</strong>
+                            <strong class="info-val" id="info-driver">—</strong>
                         </div>
                         <div class="info-item">
                             <span class="info-label">Employee ID</span>
-                            <strong class="info-val" id="info-emp-id">DRV-1001</strong>
+                            <strong class="info-val" id="info-emp-id">—</strong>
                         </div>
                         <div class="info-item">
                             <span class="info-label">Current Speed</span>
-                            <strong class="info-val text-teal" id="info-speed">48 km/h</strong>
+                            <strong class="info-val text-teal" id="info-speed">0 km/h</strong>
                         </div>
                         <div class="info-item">
                             <span class="info-label">Fuel Level</span>
@@ -212,15 +237,15 @@
                         </div>
                         <div class="info-item full">
                             <span class="info-label">Current Location (GPS)</span>
-                            <span class="info-val-sm" id="info-location">14.5995, 120.9842 (Port Area Pier 15)</span>
+                            <span class="info-val-sm" id="info-location">No live GPS fix</span>
                         </div>
                         <div class="info-item full">
                             <span class="info-label">Destination</span>
-                            <span class="info-val-highlight" id="info-destination">Quezon City Logistics Hub</span>
+                            <span class="info-val-highlight" id="info-destination">No destination</span>
                         </div>
                         <div class="info-item">
                             <span class="info-label">Trip Start Time</span>
-                            <span class="info-val-sm" id="info-start-time">10:30 AM</span>
+                            <span class="info-val-sm" id="info-start-time">Not started</span>
                         </div>
                         <div class="info-item">
                             <span class="info-label">Route Status</span>
@@ -274,7 +299,7 @@
             <div class="panel-card shadow-sm margin-top-md">
                 <div class="panel-header-sub">
                     <h3>Active Fleet Dispatches</h3>
-                    <span class="badge-count" id="active-dispatch-count">3</span>
+                    <!-- Count badge intentionally hidden; list remains -->
                 </div>
                 <div class="dispatch-list" id="dispatch-list-container">
                     <!-- Dynamic rendering -->
@@ -576,7 +601,7 @@
             ? `${Number(v.latitude).toFixed(4)}, ${Number(v.longitude).toFixed(4)} (${v.origin})`
             : `No live GPS fix (${v.origin})`;
         document.getElementById('info-destination').innerText = v.destination;
-        document.getElementById('info-start-time').innerText = v.trip_start_time || '10:30 AM';
+        document.getElementById('info-start-time').innerText = v.trip_start_time || 'Not started';
 
         const routePill = document.getElementById('info-route-status');
         routePill.innerText = v.route_color === 'red' ? 'Critical Delay' : (v.route_color === 'yellow' ? 'Delayed' : 'On Time');
@@ -847,7 +872,8 @@
 
         if (vehicles.length === 0) {
             container.innerHTML = '<div class="dispatch-empty" style="padding:1.5rem 0.5rem;text-align:center;color:var(--muted,#6c7a93);font-size:0.85rem;">No vehicles match your search.</div>';
-            document.getElementById('active-dispatch-count').innerText = 0;
+            const dispatchCount = document.getElementById('active-dispatch-count');
+            if (dispatchCount) { dispatchCount.innerText = 0; }
             return;
         }
 
@@ -872,7 +898,8 @@
             container.appendChild(item);
         });
 
-        document.getElementById('active-dispatch-count').innerText = activeCount;
+        const dispatchCount = document.getElementById('active-dispatch-count');
+        if (dispatchCount) { dispatchCount.innerText = activeCount; }
     }
 
     function updateDashboardAnalytics() {

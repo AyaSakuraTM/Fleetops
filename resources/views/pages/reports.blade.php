@@ -93,7 +93,6 @@ $reportData = [
                 <p class="report-empty">No driver score data is available yet.</p>
             <?php endif; ?>
             <div class="report-card-actions">
-                <a href="<?= htmlspecialchars($dashboard['basePath'] . '/driver-analytics') ?>">View driver analytics <span aria-hidden="true">→</span></a>
                 <button type="button" class="report-download" onclick="downloadReport('drivers')">Export CSV</button>
             </div>
         </article>
