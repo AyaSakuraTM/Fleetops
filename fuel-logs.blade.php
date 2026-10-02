@@ -10,9 +10,9 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
         <div>
             <p class="eyebrow">Fleet expenses</p>
             <h3>Fuel Logs</h3>
-            <p class="fuel-intro">Record refuels and keep an eye on fuel volume and spend.</p>
+            <p class="fuel-intro"><?= $dashboard['isAdmin'] ? 'Record refuels and keep an eye on fuel volume and spend.' : 'Review fuel records, fuel levels, and proof photos.' ?></p>
         </div>
-        <button class="pill-button" type="button" onclick="openFuelModal()">+ Log fuel</button>
+        <?php if ($dashboard['isAdmin']): ?><button class="pill-button" type="button" onclick="openFuelModal()">+ Log fuel</button><?php endif; ?>
     </div>
 
     <?php if (session('status')): ?>
@@ -57,7 +57,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
                             <td><?= htmlspecialchars($log['logged_at'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= isset($log['fuel_level_before']) ? number_format((float) $log['fuel_level_before'], 1).'%' : '—' ?></td>
                             <td><?= isset($log['fuel_level_after']) ? number_format((float) $log['fuel_level_after'], 1).'%' : '—' ?></td>
-                            <td><?php if ($dashboard['isAdmin'] && !empty($log['receipt_image'])): ?><a href="<?= route('fuel-logs.proof', $log['id']) ?>" target="_blank" rel="noopener">View photo</a><?php else: ?><?= !empty($log['receipt_image']) ? 'Submitted' : 'No photo' ?><?php endif; ?></td>
+                            <td><?php if (!empty($log['receipt_image'])): ?><a href="<?= route('fuel-logs.proof', $log['id']) ?>" target="_blank" rel="noopener">View photo</a><?php else: ?>No photo<?php endif; ?></td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if ($fuelCount === 0): ?>
@@ -70,7 +70,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
     </div>
 </section>
 
-<div id="fuel-modal" class="modal-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="fuel-modal-title">
+<?php if ($dashboard['isAdmin']): ?><div id="fuel-modal" class="modal-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="fuel-modal-title">
     <div class="modal-card">
         <div class="modal-header">
             <div><p class="eyebrow">New transaction</p><h3 id="fuel-modal-title">Log a refuel</h3></div>
@@ -134,7 +134,7 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
             </div>
         </form>
     </div>
-</div>
+</div><?php endif; ?>
 <style>
     .fuel-intro { margin: 6px 0 0; color: var(--muted); font-size: .9rem; }
     .fuel-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 4px 0 20px; }
@@ -189,10 +189,11 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
     const preview = document.getElementById('fuel-rate-preview');
 
     window.openFuelModal = () => {
+        if (!modal) return;
         modal.style.display = 'flex';
         document.getElementById('fuel-vehicle')?.focus();
     };
-    window.closeFuelModal = () => { modal.style.display = 'none'; };
+    window.closeFuelModal = () => { if (modal) modal.style.display = 'none'; };
 
     modal?.addEventListener('click', (event) => { if (event.target === modal) window.closeFuelModal(); });
     document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && modal?.style.display === 'flex') window.closeFuelModal(); });
@@ -225,16 +226,16 @@ $averagePrice = $totalLiters > 0 ? $totalCost / $totalLiters : 0;
             ? `Estimated price per liter: \u20B1${(cost / liters).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
             : 'Enter liters and total paid to estimate the price per liter.';
     };
-    litersInput.addEventListener('input', updateRate);
-    costInput.addEventListener('input', updateRate);
+    litersInput?.addEventListener('input', updateRate);
+    costInput?.addEventListener('input', updateRate);
 
-    vehicleSelect.addEventListener('change', () => {
+    vehicleSelect?.addEventListener('change', () => {
         const selectedVehicle = vehicleSelect.selectedOptions[0];
         fuelBeforeInput.value = selectedVehicle?.dataset.fuelLevel ?? '';
         fuelAfterInput.value = '';
     });
 
-    <?php if ($errors->any()): ?>
+    <?php if ($errors->any() && $dashboard['isAdmin']): ?>
     window.openFuelModal();
     <?php endif; ?>
 })();

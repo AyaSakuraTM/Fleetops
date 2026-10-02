@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Alert;
 use App\Models\FuelLog;
+use App\Models\Driver;
 use App\Models\MaintenanceRecord;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -15,6 +16,18 @@ use Illuminate\View\View;
 class PageController extends Controller
 {
     public function show(string $page): View
+    {
+        return $this->renderPage($page, '');
+    }
+
+    public function showUser(string $page): View
+    {
+        abort_unless(request()->user() && request()->user()->role !== 'Admin', 403, 'User access only.');
+
+        return $this->renderPage($page, '/users');
+    }
+
+    private function renderPage(string $page, string $basePath): View
     {
         $titles = [
             'dashboard' => 'Dashboard Overview', 'vehicles' => 'Vehicles Management', 'reservations' => 'Reservations',
@@ -41,8 +54,9 @@ class PageController extends Controller
 
         $dashboard = [
             'page' => $page,
+            'isAdmin' => $user->role === 'Admin',
             'title' => $titles[$page],
-            'basePath' => '',
+            'basePath' => $basePath,
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
@@ -59,6 +73,7 @@ class PageController extends Controller
                 ['title' => 'Available Dispatches', 'value' => $pendingReservationCount, 'meta' => 'Pending reservations', 'positive' => true, 'currency' => false],
                 ['title' => 'Transport Costs This Month', 'value' => $finance['totals']['total_this_month'], 'meta' => 'Fuel + maintenance, live', 'positive' => true, 'currency' => true, 'currency_symbol' => 'PHP '],
             ],
+            'vehicleAvailability' => $page === 'dashboard' ? $this->buildVehicleAvailability() : [],
             'reservations' => DB::table('reservations')
                 ->orderByDesc($reservationDateColumn)
                 ->limit(5)
@@ -91,22 +106,31 @@ class PageController extends Controller
             'users' => $page === 'usermanagement'
                 ? User::orderBy('name')->get(['id', 'name', 'email', 'role', 'status'])->all()
                 : [],
-            'userRoles' => ['Admin', 'Manager', 'Dispatcher', 'Accountant', 'Staff'],
-            'vehicleOptions' => Vehicle::orderBy('name')->get(['id', 'name', 'type'])->all(),
+            'userRoles' => ['User', 'Admin'],
+            'vehicleOptions' => Vehicle::orderBy('plate_number')->get(['id', 'name', 'type', 'plate_number', 'fuel_level'])->all(),
+            'driverOptions' => Driver::with('user:id,name')->orderBy('name')->get(['id', 'user_id', 'name'])->all(),
             'fuelLogs' => $page === 'fuel-logs'
-                ? FuelLog::with('vehicle:id,name')
+                ? FuelLog::with(['vehicle:id,name,plate_number', 'driver.user:id,name'])
                     ->orderByDesc('logged_at')
                     ->limit(30)
                     ->get()
                     ->map(fn (FuelLog $log): array => [
                         'vehicle' => $log->vehicle->name ?? 'Unknown',
+                        'plate_number' => $log->vehicle->plate_number ?? 'Unknown',
+                        'driver' => $log->driver->user->name ?? $log->driver->name ?? 'Unknown',
+                        'fuel_level_before' => $log->fuel_level_before,
+                        'fuel_level_after' => $log->fuel_level_after,
+                        'receipt_image' => $log->receipt_image,
+                        'id' => $log->id,
                         'logged_at' => $log->logged_at->format('M d, Y'),
                         'liters' => number_format($log->liters, 1).'L',
                         'cost' => number_format($log->cost, 2),
                     ])
                     ->all()
                 : [],
-            'quickActions' => ['Add Vehicle', 'Log Fuel', 'Create Reservation', 'Report Incident', 'Dispatch Log', 'View Routes', 'Check Drivers', 'Settings'],
+            'quickActions' => $user->role === 'Admin'
+                ? ['Add Vehicle', 'Log Fuel', 'Create Reservation', 'Report Incident', 'Dispatch Log', 'View Routes', 'Check Drivers', 'Settings']
+                : ['View Vehicles', 'Review Fuel Logs', 'View Reservations', 'View Routes', 'Review Drivers', 'View Reports', 'View Notifications', 'Settings'],
             'finance' => $finance,
             'unreadNotifications' => Alert::whereNull('read_at')->count(),
             'notifications' => $page === 'notifications'
@@ -156,36 +180,38 @@ class PageController extends Controller
                 ->get();
             $dashboard['availableVehicles'] = DB::table('vehicles')
                 ->whereRaw('LOWER(status) = ?', ['active'])
-                ->whereNotExists(function ($query): void {
-                    $query->selectRaw('1')
-                        ->from('dispatches')
-                        ->whereColumn('dispatches.vehicle_id', 'vehicles.id')
-                        ->whereIn('dispatches.status', ['Scheduled', 'Active']);
-                })
                 ->orderBy('plate_number')
-                ->get(['id', 'vehicle_code', 'plate_number', 'type']);
-
-            $activeDrivers = DB::table('drivers')
+                ->get();
+            $dashboard['availableDrivers'] = DB::table('drivers')
                 ->join('users', 'drivers.user_id', '=', 'users.id')
                 ->whereRaw('LOWER(drivers.status) = ?', ['active'])
                 ->orderBy('users.name')
-                ->select([
-                    'drivers.id',
-                    'drivers.employee_id',
-                    DB::raw('COALESCE(drivers.name, users.name) as driver_name'),
-                ]);
-            $dashboard['reservationDrivers'] = (clone $activeDrivers)->get();
-            $dashboard['availableDrivers'] = (clone $activeDrivers)
-                ->whereNotExists(function ($query): void {
-                    $query->selectRaw('1')
-                        ->from('dispatches')
-                        ->whereColumn('dispatches.driver_id', 'drivers.id')
-                        ->whereIn('dispatches.status', ['Scheduled', 'Active']);
-                })
-                ->get();
+                ->get(['drivers.id', 'users.name as driver_name']);
         }
 
         return view('layout', compact('dashboard'));
+    }
+
+    private function buildVehicleAvailability(): array
+    {
+        $counts = ['Available' => 0, 'Booked' => 0, 'Maintenance' => 0, 'Delayed' => 0, 'Unavailable' => 0];
+        $statuses = DB::table('vehicles')
+            ->selectRaw('LOWER(TRIM(status)) as vehicle_status, COUNT(*) as vehicle_count')
+            ->groupByRaw('LOWER(TRIM(status))')
+            ->get();
+
+        foreach ($statuses as $status) {
+            $category = match ($status->vehicle_status) {
+                'active', 'available' => 'Available',
+                'reserved', 'booked', 'in transit' => 'Booked',
+                'maintenance' => 'Maintenance',
+                'delayed' => 'Delayed',
+                default => 'Unavailable',
+            };
+            $counts[$category] += (int) $status->vehicle_count;
+        }
+
+        return ['counts' => $counts, 'total' => array_sum($counts)];
     }
 
     private function buildFinanceData(): array
@@ -224,23 +250,11 @@ class PageController extends Controller
             $trendValues[] = round($fuel + $maint, 2);
         }
 
-        $firstHalfAvg = array_sum(array_slice($trendValues, 0, 3)) / 3;
-        $secondHalfAvg = array_sum(array_slice($trendValues, 3, 3)) / 3;
-
-        if ($firstHalfAvg > $secondHalfAvg) {
-            $projectedSavings = round(($firstHalfAvg - $secondHalfAvg) * 3, 2);
-            $savingsMeta = 'Based on your declining 6-month cost trend';
-        } else {
-            $projectedSavings = 0.0;
-            $savingsMeta = 'No declining cost trend detected yet';
-        }
-
         return [
             'cards' => [
                 ['key' => 'total_transport_cost', 'title' => 'Total Transport Cost', 'value' => $totalThisMonth, 'change' => $pctChange($totalThisMonth, $totalLastMonth), 'meta' => 'vs last month'],
                 ['key' => 'fuel_expenses', 'title' => 'Fuel Expenses', 'value' => $fuelThisMonth, 'change' => $pctChange($fuelThisMonth, $fuelLastMonth), 'meta' => 'vs last month'],
                 ['key' => 'maintenance_costs', 'title' => 'Maintenance Costs', 'value' => $maintThisMonth, 'change' => $pctChange($maintThisMonth, $maintLastMonth), 'meta' => 'vs last month'],
-                ['key' => 'projected_savings', 'title' => 'Projected Savings', 'value' => $projectedSavings, 'meta' => $savingsMeta],
             ],
             'trend' => [
                 'labels' => $trendLabels,

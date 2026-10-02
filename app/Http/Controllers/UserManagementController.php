@@ -11,7 +11,7 @@ use Illuminate\Validation\Rule;
 
 class UserManagementController extends Controller
 {
-    private const ROLES = ['Admin', 'Manager', 'Dispatcher', 'Accountant', 'Staff'];
+    private const ROLES = ['User', 'Admin'];
 
     public function store(Request $request): RedirectResponse
     {

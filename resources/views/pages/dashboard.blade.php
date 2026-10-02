@@ -20,7 +20,19 @@
             </div>
             <div class="availability-layout">
                 <div class="chart-card">
-                    <div class="pie-chart"></div>
+                    @php
+                        $availability = $dashboard['vehicleAvailability'];
+                        $colors = ['Available' => 'var(--teal)', 'Booked' => 'var(--orange)', 'Maintenance' => 'var(--blue)', 'Delayed' => 'var(--gray)', 'Unavailable' => 'var(--gold)'];
+                        $segments = [];
+                        $position = 0;
+                        foreach ($availability['counts'] as $label => $count) {
+                            $end = $position + ($availability['total'] > 0 ? $count / $availability['total'] * 100 : 0);
+                            $segments[] = $colors[$label].' '.$position.'% '.$end.'%';
+                            $position = $end;
+                        }
+                        $chartBackground = $availability['total'] > 0 ? 'conic-gradient('.implode(', ', $segments).')' : 'var(--border)';
+                    @endphp
+                    <div class="pie-chart" data-total="{{ $availability['total'] }}" style="background: {{ $chartBackground }};" role="img" aria-label="{{ $availability['total'] }} vehicles total. {{ collect($availability['counts'])->map(fn ($count, $label) => $label.': '.$count)->implode(', ') }}"></div>
                     <div class="chart-caption">
                         <div><span class="dot teal"></span> Available</div>
                         <div><span class="dot orange"></span> Booked</div>
@@ -30,11 +42,9 @@
                     </div>
                 </div>
                 <div class="legend-table">
-                    <div class="legend-row"><span>Available</span><strong>198</strong></div>
-                    <div class="legend-row"><span>Booked</span><strong>27</strong></div>
-                    <div class="legend-row"><span>Maintenance</span><strong>16</strong></div>
-                    <div class="legend-row"><span>Delayed</span><strong>9</strong></div>
-                    <div class="legend-row"><span>Unavailable</span><strong>6</strong></div>
+                    @foreach ($availability['counts'] as $label => $count)
+                        <div class="legend-row"><span>{{ $label }}</span><strong>{{ $count }}</strong></div>
+                    @endforeach
                 </div>
             </div>
         </article>
@@ -126,23 +136,8 @@
                 </div>
             </div>
             <div class="quick-grid">
-                <?php
-                $quickActionRoutes = [
-                    'Add Vehicle' => 'vehicles',
-                    'Log Fuel' => 'fuel-logs',
-                    'Create Reservation' => 'reservations',
-                    'Dispatch Log' => 'reservations',
-                    'View Routes' => 'routes',
-                    'Check Drivers' => 'drivers',
-                    'Settings' => 'settings',
-                ];
-                ?>
                 <?php foreach ($dashboard['quickActions'] as $action): ?>
-                    <?php if (isset($quickActionRoutes[$action])): ?>
-                        <a class="quick-item" href="<?= route($quickActionRoutes[$action]) ?>" style="text-decoration:none;"><?= htmlspecialchars($action) ?></a>
-                    <?php else: ?>
-                        <div class="quick-item"><?= htmlspecialchars($action) ?></div>
-                    <?php endif; ?>
+                    <div class="quick-item"><?= htmlspecialchars($action) ?></div>
                 <?php endforeach; ?>
             </div>
         </article>

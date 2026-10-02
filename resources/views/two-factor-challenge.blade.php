@@ -23,6 +23,8 @@
         label { font-size: .84rem; font-weight: 600; }
         input { width: 100%; min-height: 52px; padding: .75rem .95rem; border: 1px solid var(--border); border-radius: .65rem; outline: none; color: var(--text); background: var(--surface); font: inherit; font-size: 1.4rem; font-weight: 700; letter-spacing: .35em; text-align: center; transition: border-color .18s ease, box-shadow .18s ease; }
         input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+        .remember-option { display: flex; align-items: center; gap: .6rem; margin-bottom: 1.2rem; cursor: pointer; }
+        .remember-option input { width: 18px; height: 18px; min-height: 0; padding: 0; margin: 0; accent-color: var(--accent); }
         .btn { width: 100%; min-height: 48px; margin-top: .35rem; border: 0; border-radius: .65rem; color: #fff; background: var(--accent); box-shadow: 0 8px 18px rgba(67, 97, 238, .24); font: inherit; font-size: .9rem; font-weight: 700; cursor: pointer; transition: background .18s ease, transform .18s ease; }
         .btn:hover { background: var(--accent-dark); transform: translateY(-1px); }
         .resend-form { margin-top: 1.5rem; text-align: center; }
@@ -54,6 +56,10 @@
                 <label for="code">Verification code</label>
                 <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="------" autocomplete="one-time-code" required autofocus>
             </div>
+            <label class="remember-option" for="remember">
+                <input type="checkbox" id="remember" name="remember" value="1" @checked(old('remember'))>
+                <span>Remember me for 7 days</span>
+            </label>
             <button type="submit" class="btn">Verify &amp; sign in</button>
         </form>
 

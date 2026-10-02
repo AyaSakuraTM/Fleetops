@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Alert;
 use App\Models\User;
+use App\Models\TrustedDevice;
 use App\Notifications\TwoFactorCodeNotification;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Password;
 use Illuminate\View\View;
 use App\Notifications\Channels\BrevoApiException;
@@ -17,6 +19,8 @@ use App\Notifications\Channels\BrevoApiException;
 class AuthController extends Controller
 {
     private const TWO_FACTOR_VALID_MINUTES = 10;
+    private const REMEMBER_MINUTES = 7 * 24 * 60;
+    private const TRUSTED_DEVICE_COOKIE = 'fleetops_otp_device';
 
     public function create(): View { return view('login'); }
 
@@ -36,6 +40,14 @@ class AuthController extends Controller
             return back()->withErrors(['email' => 'Invalid email or password.'])->onlyInput('email');
         }
 
+        if ($this->hasTrustedDevice($request, $user)) {
+            $request->session()->forget('two_factor');
+            Auth::login($user);
+            $request->session()->regenerate();
+
+            return redirect()->to($this->dashboardPath($user));
+        }
+
         if (! $this->issueTwoFactorCode($user)) {
             return back()
                 ->withErrors(['email' => 'We could not send a verification code. Please try again.'])
@@ -43,7 +55,6 @@ class AuthController extends Controller
         }
 
         $request->session()->put('two_factor.user_id', $user->id);
-        $request->session()->put('two_factor.remember', $request->boolean('remember'));
 
         return redirect()->route('two-factor.challenge');
     }
@@ -59,12 +70,13 @@ class AuthController extends Controller
 
     public function verifyTwoFactor(Request $request): RedirectResponse
     {
-        $request->validate(['code' => ['required', 'string']]);
+        $request->validate(['code' => ['required', 'string', 'regex:/^[0-9]{6}$/']]);
 
         $userId = $request->session()->get('two_factor.user_id');
         $user = $userId ? User::find($userId) : null;
 
-        if (! $user) {
+        if (! $user || $user->status !== 'active') {
+            $request->session()->forget('two_factor');
             return redirect()->route('login');
         }
 
@@ -80,13 +92,18 @@ class AuthController extends Controller
         $user->two_factor_expires_at = null;
         $user->save();
 
-        $remember = $request->session()->pull('two_factor.remember', false);
-        $request->session()->forget('two_factor.user_id');
+        $remember = $request->boolean('remember');
+        $request->session()->forget('two_factor');
 
+        if ($remember) {
+            $this->rememberDevice($request, $user);
+        }
+
+        Auth::guard('web')->setRememberDuration(self::REMEMBER_MINUTES);
         Auth::login($user, $remember);
         $request->session()->regenerate();
 
-        return redirect()->intended('/dashboard');
+        return redirect()->to($this->dashboardPath($user));
     }
 
     public function resendTwoFactor(Request $request): RedirectResponse
@@ -94,11 +111,12 @@ class AuthController extends Controller
         $userId = $request->session()->get('two_factor.user_id');
         $user = $userId ? User::find($userId) : null;
 
-        if (! $user) {
+        if (! $user || $user->status !== 'active') {
+            $request->session()->forget('two_factor');
             return redirect()->route('login');
         }
 
-        if ($user->two_factor_expires_at?->subMinutes(self::TWO_FACTOR_VALID_MINUTES - 1)->isFuture()) {
+        if ($user->two_factor_expires_at?->copy()->subMinutes(self::TWO_FACTOR_VALID_MINUTES - 1)->isFuture()) {
             return back()->withErrors(['code' => 'Please wait a moment before requesting a new code.']);
         }
 
@@ -107,6 +125,53 @@ class AuthController extends Controller
         }
 
         return back()->with('status', 'A new verification code has been sent to your email.');
+    }
+
+    private function hasTrustedDevice(Request $request, User $user): bool
+    {
+        $cookie = $request->cookie(self::TRUSTED_DEVICE_COOKIE);
+        if (! is_string($cookie) || ! preg_match('/^([a-f0-9]{24}):([a-f0-9]{64})$/', $cookie, $parts)) {
+            return false;
+        }
+
+        $device = TrustedDevice::where('user_id', $user->id)
+            ->where('selector', $parts[1])
+            ->where('expires_at', '>', now())
+            ->first();
+
+        // Binding the token to the password invalidates trust after a password change.
+        return $device !== null && hash_equals(
+            $device->token_hash,
+            hash('sha256', $parts[2].'|'.$user->getAuthPassword())
+        );
+    }
+
+    private function rememberDevice(Request $request, User $user): void
+    {
+        TrustedDevice::where('user_id', $user->id)->where('expires_at', '<=', now())->delete();
+
+        $selector = bin2hex(random_bytes(12));
+        $token = bin2hex(random_bytes(32));
+
+        TrustedDevice::create([
+            'user_id' => $user->id,
+            'selector' => $selector,
+            'token_hash' => hash('sha256', $token.'|'.$user->getAuthPassword()),
+            'user_agent' => substr((string) $request->userAgent(), 0, 255),
+            'expires_at' => now()->addDays(7),
+        ]);
+
+        Cookie::queue(Cookie::make(
+            self::TRUSTED_DEVICE_COOKIE,
+            $selector.':'.$token,
+            self::REMEMBER_MINUTES,
+            '/',
+            config('session.domain'),
+            $request->isSecure(),
+            true,
+            false,
+            'lax',
+        ));
     }
 
     private function issueTwoFactorCode(User $user): bool
@@ -188,7 +253,7 @@ class AuthController extends Controller
         $user = new User([
             'name' => $data['name'],
             'email' => strtolower($data['email']),
-            'role' => 'Staff',
+            'role' => 'User',
             'status' => 'active',
         ]);
         $user->setPassword($data['password']);
@@ -199,7 +264,12 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route('dashboard');
+        return redirect('/users/dashboard');
+    }
+
+    private function dashboardPath(User $user): string
+    {
+        return $user->role === 'Admin' ? '/dashboard' : '/users/dashboard';
     }
 
     public function destroy(Request $request): RedirectResponse

@@ -23,7 +23,7 @@ $breakdown = $finance['breakdown'];
             <p class="eyebrow">Financial Overview</p>
             <h3>Cost Analytics</h3>
         </div>
-        <button class="pill-button" type="button" onclick="openExpenseModal()">Log Expense</button>
+        <?php if ($dashboard['isAdmin']): ?><button class="pill-button" type="button" onclick="openExpenseModal()">Log Expense</button><?php endif; ?>
     </div>
 
     <?php if (session('status')): ?>
@@ -79,6 +79,7 @@ $breakdown = $finance['breakdown'];
 </section>
 
 <!-- Modal: Log Expense (Maintenance) -->
+<?php if ($dashboard['isAdmin']): ?>
 <div id="expense-modal" class="modal-backdrop" style="display:none;">
     <div class="modal-card">
         <div class="modal-header">
@@ -111,6 +112,7 @@ $breakdown = $finance['breakdown'];
         </form>
     </div>
 </div>
+<?php endif; ?>
 
 <script>
 function openExpenseModal() {

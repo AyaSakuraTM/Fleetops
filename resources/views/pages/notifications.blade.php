@@ -15,7 +15,7 @@ $severityColors = [
             <h3>Notifications</h3>
             <p class="notifications-intro">Review important changes and updates across your fleet workspace.</p>
         </div>
-        <button class="pill-button" id="markAllReadBtn" type="button" <?= $unreadCount === 0 ? 'disabled' : '' ?>>Mark all as read</button>
+        <?php if ($dashboard['isAdmin']): ?><button class="pill-button" id="markAllReadBtn" type="button" <?= $unreadCount === 0 ? 'disabled' : '' ?>>Mark all as read</button><?php endif; ?>
     </div>
 
     <?php if (session('status')): ?>
@@ -65,7 +65,7 @@ $severityColors = [
                         <span class="read-state"><?= $isRead ? 'Read' : 'Unread' ?></span>
                     </div>
                 </div>
-                <?php if (!$isRead): ?>
+                <?php if (!$isRead && $dashboard['isAdmin']): ?>
                     <span class="unread-indicator" aria-label="Unread"></span>
                     <button type="button" class="mark-read-button" aria-label="Mark <?= htmlspecialchars($notification['title'] ?? 'notification', ENT_QUOTES, 'UTF-8') ?> as read">Mark read</button>
                 <?php endif; ?>
