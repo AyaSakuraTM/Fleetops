@@ -44,7 +44,7 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
         <div class="table-wrapper">
             <table id="fuel-log-table">
                 <thead>
-                    <tr><?php if ($dashboard['isAdmin']): ?><th>Submitted by</th><?php endif; ?><th>Driver</th><th>Vehicle plate no.</th><th>Date</th><th>Fuel before</th><th>Fuel after</th><th>Proof</th></tr>
+                    <tr><?php if ($dashboard['isAdmin']): ?><th>Submitted by</th><?php endif; ?><th>Driver</th><th>Vehicle plate no.</th><th>Date</th><th>Before reading</th><th>After reading</th><th>Proof photos</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($fuelLogs as $log): ?>
@@ -57,9 +57,24 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
                             <td><strong><?= htmlspecialchars($log['driver'] ?? 'Unknown driver', ENT_QUOTES, 'UTF-8') ?></strong></td>
                             <td><?= htmlspecialchars($log['plate_number'] ?? 'Unknown plate', ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars($log['logged_at'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
-                            <td><?= isset($log['fuel_level_before']) ? number_format((float) $log['fuel_level_before'], 1).'%' : '—' ?></td>
-                            <td><?= isset($log['fuel_level_after']) ? number_format((float) $log['fuel_level_after'], 1).'%' : '—' ?></td>
-                            <td><?php if (!empty($log['receipt_image'])): ?><a href="<?= route('fuel-logs.proof', $log['id']) ?>" target="_blank" rel="noopener noreferrer">View photo</a><?php else: ?>No photo<?php endif; ?></td>
+                            <td>
+    <?php if (isset($log['fuel_level_before'])): $beforeLevel = max(0, min(100, (float) $log['fuel_level_before'])); ?>
+        <div class="fuel-meter" role="progressbar" aria-label="Fuel level before refuel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $beforeLevel ?>"><span style="width:<?= $beforeLevel ?>%"></span></div>
+        <small><?= number_format($beforeLevel, 1) ?></small>
+    <?php else: ?>&mdash;<?php endif; ?>
+</td>
+                            <td>
+    <?php if (isset($log['fuel_level_after'])): $afterLevel = max(0, min(100, (float) $log['fuel_level_after'])); ?>
+        <div class="fuel-meter" role="progressbar" aria-label="Fuel level after refuel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $afterLevel ?>"><span style="width:<?= $afterLevel ?>%"></span></div>
+        <small><?= number_format($afterLevel, 1) ?></small>
+    <?php else: ?>&mdash;<?php endif; ?>
+</td>
+                            <td class="fuel-proof-links">
+    <?php if (!empty($log['fuel_level_before_image'])): ?><a href="<?= route('fuel-logs.proof', ['fuelLog' => $log['id'], 'type' => 'before']) ?>" target="_blank" rel="noopener noreferrer">Before photo</a><?php endif; ?>
+    <?php if (!empty($log['fuel_level_after_image'])): ?><a href="<?= route('fuel-logs.proof', ['fuelLog' => $log['id'], 'type' => 'after']) ?>" target="_blank" rel="noopener noreferrer">After photo</a><?php endif; ?>
+    <?php if (!empty($log['receipt_image'])): ?><a href="<?= route('fuel-logs.proof', ['fuelLog' => $log['id'], 'type' => 'receipt']) ?>" target="_blank" rel="noopener noreferrer">Receipt</a><?php endif; ?>
+    <?php if (empty($log['fuel_level_before_image']) && empty($log['fuel_level_after_image']) && empty($log['receipt_image'])): ?>No photos<?php endif; ?>
+</td>
                         </tr>
                     <?php endforeach; ?>
                     <?php if ($fuelCount === 0): ?>
@@ -109,12 +124,23 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
             </div>
             <div class="fuel-input-grid">
                 <div class="form-group fuel-field">
-                    <label for="fuel-level-before">Fuel level before (%)</label>
-                    <input class="form-control" type="number" id="fuel-level-before" name="fuel_level_before" min="0" max="100" step="0.1" value="<?= htmlspecialchars((string) old('fuel_level_before', ''), ENT_QUOTES, 'UTF-8') ?>" required>
+                    <label for="fuel-level-before">Fuel level before</label>
+                    <input class="form-control" type="number" id="fuel-level-before" name="fuel_level_before" min="0" max="100" step="0.1" value="<?= htmlspecialchars((string) old('fuel_level_before', ''), ENT_QUOTES, 'UTF-8') ?>" readonly aria-describedby="fuel-level-help">
                 </div>
                 <div class="form-group fuel-field">
-                    <label for="fuel-level-after">Fuel level after (%)</label>
+                    <label for="fuel-level-after">Fuel level after</label>
                     <input class="form-control" type="number" id="fuel-level-after" name="fuel_level_after" min="0" max="100" step="0.1" value="<?= htmlspecialchars((string) old('fuel_level_after', ''), ENT_QUOTES, 'UTF-8') ?>" required>
+                </div>
+            </div>
+            <small class="fuel-help" id="fuel-level-help">The before reading is taken from the vehicle record. Readings use a 0-100 scale.</small>
+            <div class="fuel-input-grid fuel-evidence-grid">
+                <div class="form-group fuel-field">
+                    <label for="fuel-before-proof">Photo before refueling (JPG, PNG, or WebP; max 5 MB)</label>
+                    <input class="form-control" type="file" id="fuel-before-proof" name="fuel_level_before_image" accept="image/jpeg,image/png,image/webp" required>
+                </div>
+                <div class="form-group fuel-field">
+                    <label for="fuel-after-proof">Photo after refueling (JPG, PNG, or WebP; max 5 MB)</label>
+                    <input class="form-control" type="file" id="fuel-after-proof" name="fuel_level_after_image" accept="image/jpeg,image/png,image/webp" required>
                 </div>
             </div>
             <div class="form-group fuel-field">
@@ -159,6 +185,11 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
     .fuel-log-panel table { margin: 0; }
     .fuel-log-panel th, .fuel-log-panel td { padding: 13px 20px; }
     .fuel-log-panel td strong { color: var(--text); }
+    .fuel-meter { width: 110px; max-width: 100%; height: 9px; overflow: hidden; margin-bottom: 4px; border-radius: 999px; background: var(--border); }
+    .fuel-meter span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #4cc9f0, #4361ee); }
+    .fuel-log-panel td small { color: var(--muted); }
+    .fuel-proof-links { min-width: 125px; }
+    .fuel-proof-links a { display: block; width: fit-content; margin: 2px 0; }
     .fuel-empty { padding: 30px 20px !important; text-align: center; color: var(--muted); }
     .modal-header .eyebrow { margin: 0 0 4px; }
     .modal-header h3 { margin: 0; }
@@ -243,7 +274,7 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
         fuelAfterInput.value = '';
     });
 
-    <?php if ($errors->any() && $dashboard['isAdmin']): ?>
+    <?php if ($errors->any()): ?>
     window.openFuelModal();
     <?php endif; ?>
 })();
