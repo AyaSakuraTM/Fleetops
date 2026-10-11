@@ -3,15 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\Alert;
+use App\Models\Driver;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 class UserManagementController extends Controller
 {
-    private const ROLES = ['User', 'Admin'];
+    private const ROLES = ['User', 'Driver', 'Admin'];
 
     public function store(Request $request): RedirectResponse
     {
@@ -25,17 +27,23 @@ class UserManagementController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ]);
 
-        $passwordField = User::passwordColumnName();
+        $user = DB::transaction(function () use ($data) {
+            $passwordField = User::passwordColumnName();
 
-        User::create([
-            'name' => $data['name'],
-            'email' => strtolower($data['email']),
-            $passwordField => Hash::make($data['password']),
-            'role' => $data['role'],
-            'status' => $data['status'],
-        ]);
+            $user = User::create([
+                'name' => $data['name'],
+                'email' => strtolower($data['email']),
+                $passwordField => Hash::make($data['password']),
+                'role' => $data['role'],
+                'status' => $data['status'],
+            ]);
 
-        Alert::log('👤', 'User Added', "{$data['name']} was added as {$data['role']} by {$request->user()->name}.");
+            $this->syncDriverRecord($user);
+
+            return $user;
+        });
+
+        Alert::log('👤', 'User Added', "{$user->name} was added as {$user->role} by {$request->user()->name}.");
 
         return back()->with('status', 'User created successfully.');
     }
@@ -53,8 +61,11 @@ class UserManagementController extends Controller
                 'status' => ['required', Rule::in(['active', 'inactive'])],
             ]);
 
-            $user->status = $data['status'];
-            $user->save();
+            DB::transaction(function () use ($user, $data) {
+                $user->status = $data['status'];
+                $user->save();
+                $this->syncDriverRecord($user);
+            });
 
             $status = $user->status;
             Alert::log(
@@ -75,20 +86,69 @@ class UserManagementController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ]);
 
-        $user->name = $data['name'];
-        $user->email = strtolower($data['email']);
-        $user->role = $data['role'];
-        $user->status = $data['status'];
+        DB::transaction(function () use ($user, $data) {
+            $user->name = $data['name'];
+            $user->email = strtolower($data['email']);
+            $user->role = $data['role'];
+            $user->status = $data['status'];
 
-        if (! empty($data['password'])) {
-            $user->{User::passwordColumnName()} = Hash::make($data['password']);
-        }
+            if (! empty($data['password'])) {
+                $user->{User::passwordColumnName()} = Hash::make($data['password']);
+            }
 
-        $user->save();
+            $user->save();
+            $this->syncDriverRecord($user);
+        });
 
         Alert::log('✏️', 'User Updated', "{$user->name}'s account was updated by {$request->user()->name}.");
 
         return back()->with('status', 'User updated successfully.');
+    }
+
+    /**
+     * Keep the drivers table aligned with accounts assigned the Driver role.
+     * Existing driver rows are deactivated rather than deleted so dispatch and trip
+     * history that references them is preserved.
+     */
+    private function syncDriverRecord(User $user): void
+    {
+        $driver = Driver::query()->where('user_id', $user->id)->first();
+
+        if ($user->role !== 'Driver') {
+            if ($driver && $driver->status !== 'Inactive') {
+                $driver->status = 'Inactive';
+                $driver->save();
+            }
+
+            return;
+        }
+
+        $status = $user->status === 'active' ? 'Active' : 'Inactive';
+
+        if ($driver) {
+            $driver->name = $user->name;
+            $driver->role = 'Driver';
+            $driver->status = $status;
+            $driver->save();
+
+            return;
+        }
+
+        $baseEmployeeId = 'DRV-' . str_pad((string) $user->id, 6, '0', STR_PAD_LEFT);
+        $employeeId = $baseEmployeeId;
+        $suffix = 1;
+
+        while (Driver::query()->where('employee_id', $employeeId)->exists()) {
+            $employeeId = $baseEmployeeId . '-' . $suffix++;
+        }
+
+        Driver::create([
+            'user_id' => $user->id,
+            'name' => $user->name,
+            'employee_id' => $employeeId,
+            'role' => 'Driver',
+            'status' => $status,
+        ]);
     }
 
     private function authorizeAdmin(Request $request): void
