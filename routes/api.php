@@ -32,6 +32,7 @@ Route::post('/mobile/resend-2fa', [
 |--------------------------------------------------------------------------
 */
 
+
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/mobile/user', [
@@ -44,9 +45,12 @@ Route::middleware('auth:sanctum')->group(function () {
         'logout',
     ]);
 
-});
+    Route::post('/location/update', [
+        ApiController::class,
+        'updateLocation',
+    ]);
 
-Route::post('/location/update', [ApiController::class, 'updateLocation']);
+});
 
 /*
 |--------------------------------------------------------------------------
