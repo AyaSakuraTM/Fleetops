@@ -12,7 +12,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class FleetCostController extends Controller
@@ -30,24 +29,21 @@ class FleetCostController extends Controller
             'driver_id' => ['nullable', Rule::exists('drivers', 'id')],
             'liters' => ['required', 'numeric', 'min:0.1', 'max:2000'],
             'cost' => ['required', 'numeric', 'min:0', 'max:1000000'],
-            'fuel_level_after' => ['required', 'numeric', 'between:0,100'],
+            'fuel_level_before' => ['required', 'numeric', 'between:0,100'],
+            'fuel_level_after' => ['required', 'numeric', 'between:0,100', 'gte:fuel_level_before'],
             'fuel_level_before_image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'fuel_level_after_image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'receipt_image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'logged_at' => ['required', 'date', 'before_or_equal:today'],
         ]);
 
-        [$log, $vehicle] = DB::transaction(function () use ($data, $request): array {
+        [$log, $vehicle, $fuelBeforeMismatch, $savedFuelLevel] = DB::transaction(function () use ($data, $request): array {
             $vehicle = Vehicle::whereKey($data['vehicle_id'])->lockForUpdate()->firstOrFail();
-            $fuelBefore = (float) $vehicle->fuel_level;
+            $savedFuelLevel = (float) $vehicle->fuel_level;
+            $fuelBefore = (float) $data['fuel_level_before'];
 
-            if ((float) $data['fuel_level_after'] < $fuelBefore) {
-                throw ValidationException::withMessages([
-                    'fuel_level_after' => 'The after reading cannot be lower than the vehicle current fuel level.',
-                ]);
-            }
+            $fuelBeforeMismatch = abs($fuelBefore - $savedFuelLevel) > 0.5;
 
-            $data['fuel_level_before'] = $fuelBefore;
             $data['fuel_level_before_image'] = $request->file('fuel_level_before_image')->store('fuel-logs/proofs', 'local');
             $data['fuel_level_after_image'] = $request->file('fuel_level_after_image')->store('fuel-logs/proofs', 'local');
             $data['receipt_image'] = $request->file('receipt_image')->store('fuel-logs/proofs', 'local');
@@ -56,8 +52,18 @@ class FleetCostController extends Controller
             $log = FuelLog::create($data);
             $vehicle->update(['fuel_level' => $data['fuel_level_after']]);
 
-            return [$log, $vehicle];
+            return [$log, $vehicle, $fuelBeforeMismatch, $savedFuelLevel];
         });
+
+        if ($fuelBeforeMismatch) {
+            Alert::log('!', 'Fuel Reading Mismatch', sprintf(
+                '%s before reading was entered as %.1f; the saved vehicle reading was %.1f. Please review the proof photos.',
+                $vehicle->name ?? 'Vehicle',
+                $log->fuel_level_before,
+                $savedFuelLevel,
+            ), 'warning');
+        }
+
         $driver = isset($data['driver_id']) ? Driver::with('user')->find($data['driver_id']) : null;
         $driverName = $driver?->user?->name
             ?? $driver?->name
