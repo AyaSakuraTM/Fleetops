@@ -732,6 +732,54 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Log out after seven minutes without activity across the user's open tabs.
+    if (logoutForm) {
+        var idleTimeoutMs = 7 * 60 * 1000;
+        var activityKey = 'fleetops.lastActivity';
+        var lastActivity = Number(localStorage.getItem(activityKey)) || Date.now();
+        var lastStoredActivity = lastActivity;
+        var loggingOutForIdle = false;
+
+        logoutForm.addEventListener('submit', function () {
+            localStorage.removeItem(activityKey);
+        });
+
+        function logoutForIdle() {
+            if (loggingOutForIdle) return;
+            loggingOutForIdle = true;
+            localStorage.removeItem(activityKey);
+            logoutForm.submit();
+        }
+
+        function recordActivity() {
+            var now = Date.now();
+            if (now - lastActivity >= idleTimeoutMs) {
+                logoutForIdle();
+                return;
+            }
+
+            lastActivity = now;
+            if (now - lastStoredActivity >= 1000) {
+                localStorage.setItem(activityKey, String(now));
+                lastStoredActivity = now;
+            }
+        }
+
+        ['pointerdown', 'keydown', 'touchstart', 'scroll', 'pointermove'].forEach(function (eventName) {
+            document.addEventListener(eventName, recordActivity, { passive: true });
+        });
+
+        window.addEventListener('storage', function (event) {
+            if (event.key !== activityKey || !event.newValue) return;
+            var sharedActivity = Number(event.newValue);
+            if (sharedActivity > lastActivity) lastActivity = sharedActivity;
+        });
+
+        window.setInterval(function () {
+            if (Date.now() - lastActivity >= idleTimeoutMs) logoutForIdle();
+        }, 1000);
+    }
+
     // Dark mode toggle
     if (darkBtn) {
         var root = document.documentElement;
