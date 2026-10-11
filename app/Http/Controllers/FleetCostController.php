@@ -9,8 +9,10 @@ use App\Models\MaintenanceRecord;
 use App\Models\Vehicle;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class FleetCostController extends Controller
@@ -28,17 +30,34 @@ class FleetCostController extends Controller
             'driver_id' => ['nullable', Rule::exists('drivers', 'id')],
             'liters' => ['required', 'numeric', 'min:0.1', 'max:2000'],
             'cost' => ['required', 'numeric', 'min:0', 'max:1000000'],
-            'fuel_level_before' => ['required', 'numeric', 'between:0,100'],
-            'fuel_level_after' => ['required', 'numeric', 'between:0,100', 'gte:fuel_level_before'],
+            'fuel_level_after' => ['required', 'numeric', 'between:0,100'],
+            'fuel_level_before_image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'fuel_level_after_image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'receipt_image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
             'logged_at' => ['required', 'date', 'before_or_equal:today'],
         ]);
 
-        $data['receipt_image'] = $request->file('receipt_image')->store('fuel-logs/proofs', 'local');
-        $data['user_id'] = $request->user()->id;
-        $log = FuelLog::create($data);
-        $vehicle = Vehicle::find($data['vehicle_id']);
-        $vehicle->update(['fuel_level' => $data['fuel_level_after']]);
+        [$log, $vehicle] = DB::transaction(function () use ($data, $request): array {
+            $vehicle = Vehicle::whereKey($data['vehicle_id'])->lockForUpdate()->firstOrFail();
+            $fuelBefore = (float) $vehicle->fuel_level;
+
+            if ((float) $data['fuel_level_after'] < $fuelBefore) {
+                throw ValidationException::withMessages([
+                    'fuel_level_after' => 'The after reading cannot be lower than the vehicle current fuel level.',
+                ]);
+            }
+
+            $data['fuel_level_before'] = $fuelBefore;
+            $data['fuel_level_before_image'] = $request->file('fuel_level_before_image')->store('fuel-logs/proofs', 'local');
+            $data['fuel_level_after_image'] = $request->file('fuel_level_after_image')->store('fuel-logs/proofs', 'local');
+            $data['receipt_image'] = $request->file('receipt_image')->store('fuel-logs/proofs', 'local');
+            $data['user_id'] = $request->user()->id;
+
+            $log = FuelLog::create($data);
+            $vehicle->update(['fuel_level' => $data['fuel_level_after']]);
+
+            return [$log, $vehicle];
+        });
         $driver = isset($data['driver_id']) ? Driver::with('user')->find($data['driver_id']) : null;
         $driverName = $driver?->user?->name
             ?? $driver?->name
@@ -56,13 +75,22 @@ class FleetCostController extends Controller
         return back()->with('status', 'Fuel log recorded.');
     }
 
-    public function showFuelProof(FuelLog $fuelLog): BinaryFileResponse
+    public function showFuelProof(Request $request, FuelLog $fuelLog): BinaryFileResponse
     {
-        $user = request()->user();
+        $user = $request->user();
         abort_unless($user && ($user->role === 'Admin' || (int) $fuelLog->user_id === (int) $user->id), 404);
-        abort_unless($fuelLog->receipt_image && Storage::disk('local')->exists($fuelLog->receipt_image), 404);
+        $imagePath = match ($request->query('type', 'receipt')) {
+            'before' => $fuelLog->fuel_level_before_image,
+            'after' => $fuelLog->fuel_level_after_image,
+            'receipt' => $fuelLog->receipt_image,
+            default => null,
+        };
+        abort_unless($imagePath && Storage::disk('local')->exists($imagePath), 404);
 
-        return response()->file(Storage::disk('local')->path($fuelLog->receipt_image));
+        return response()->file(Storage::disk('local')->path($imagePath), [
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function storeMaintenance(Request $request): RedirectResponse
