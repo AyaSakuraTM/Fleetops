@@ -538,18 +538,32 @@ class ApiController
             ->orderByDesc('id')
             ->first();
 
+        ```php
         if (in_array($actor['role'], ['Driver', 'User'], true)) {
-            $accountDriverId = (int)DB::table('drivers')->where('user_id', $actor['id'])->value('id');
-            $ownsTrip = $tripModel && (int)$tripModel->driver_id === $accountDriverId;
-            $ownsDispatch = $activeDispatch && (int)$activeDispatch->driver_id === $accountDriverId;
-            if (!$accountDriverId ||
-                ($tripModel && (int)$tripModel->driver_id !== $accountDriverId) ||
-                ($activeDispatch && (int)$activeDispatch->driver_id !== $accountDriverId) ||
-                ($actor['role'] === 'User' && !$ownsTrip && !$ownsDispatch)) {
-                $this->jsonResponse(['success' => false, 'error' => 'Vehicle is not assigned to this driver account.'], 403);
+            $accountDriverId = (int) DB::table('drivers')
+                ->where('user_id', $actor['id'])
+                ->value('id');
+
+            $ownsTrip = $tripModel
+                && (int) $tripModel->driver_id === $accountDriverId;
+
+            $ownsDispatch = $activeDispatch
+                && (int) $activeDispatch->driver_id === $accountDriverId;
+
+            if (
+                !$accountDriverId ||
+                (!$ownsTrip && !$ownsDispatch) ||
+                ($tripModel && !$ownsTrip) ||
+                ($activeDispatch && !$ownsDispatch)
+            ) {
+                $this->jsonResponse([
+                    'success' => false,
+                    'error' => 'Vehicle is not assigned to this driver account.',
+                ], 403);
                 return;
             }
         }
+```
 
         $now = date('Y-m-d H:i:s');
 
