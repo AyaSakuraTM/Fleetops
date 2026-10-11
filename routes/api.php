@@ -50,7 +50,13 @@ Route::middleware('auth:sanctum')->group(function () {
         'updateLocation',
     ]);
 
+    Route::get('/mobile/dispatches', [
+        ApiController::class,
+        'getMyActiveDispatches',
+    ]);
+
 });
+
 
 /*
 |--------------------------------------------------------------------------
