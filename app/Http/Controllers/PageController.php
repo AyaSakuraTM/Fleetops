@@ -105,6 +105,8 @@ class PageController extends Controller
                     'submitted_by' => $log->user->name ?? 'Legacy / deleted user',
                     'fuel_level_before' => $log->fuel_level_before,
                     'fuel_level_after' => $log->fuel_level_after,
+                    'fuel_level_before_image' => $log->fuel_level_before_image,
+                    'fuel_level_after_image' => $log->fuel_level_after_image,
                     'receipt_image' => $log->receipt_image,
                     'id' => $log->id,
                     'logged_at' => $log->logged_at->format('M d, Y'),
