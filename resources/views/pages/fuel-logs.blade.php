@@ -136,7 +136,7 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
                     <small class="fuel-gauge-label" id="fuel-after-gauge-label">Enter the observed reading.</small>
                 </div>
             </div>
-            <small class="fuel-help" id="fuel-level-help">The before reading is prefilled from the saved vehicle reading. Adjust it to match the observed level; differences are flagged for review.</small>
+            <small class="fuel-help" id="fuel-level-help">Enter the observed before reading yourself. Differences from the saved vehicle reading are flagged for review.</small>
             <div class="fuel-input-grid fuel-evidence-grid">
                 <div class="form-group fuel-field">
                     <label for="fuel-before-proof">Photo before refueling (JPG, PNG, or WebP; max 5 MB)</label>
@@ -275,8 +275,7 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
     costInput?.addEventListener('input', updateRate);
 
     vehicleSelect?.addEventListener('change', () => {
-        const selectedVehicle = vehicleSelect.selectedOptions[0];
-        fuelBeforeInput.value = selectedVehicle?.dataset.fuelLevel ?? '';
+        fuelBeforeInput.value = '';
         fuelAfterInput.value = '';
         updateGauge(fuelBeforeInput, 'fuel-before-meter', 'fuel-before-gauge-label');
         updateGauge(fuelAfterInput, 'fuel-after-meter', 'fuel-after-gauge-label');
@@ -301,7 +300,6 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
     fuelBeforeInput?.addEventListener('input', () => updateGauge(fuelBeforeInput, 'fuel-before-meter', 'fuel-before-gauge-label'));
     fuelAfterInput?.addEventListener('input', () => updateGauge(fuelAfterInput, 'fuel-after-meter', 'fuel-after-gauge-label'));
     if (vehicleSelect?.value) {
-        if (!fuelBeforeInput.value) fuelBeforeInput.value = vehicleSelect.selectedOptions[0]?.dataset.fuelLevel ?? '';
         updateGauge(fuelBeforeInput, 'fuel-before-meter', 'fuel-before-gauge-label');
         updateGauge(fuelAfterInput, 'fuel-after-meter', 'fuel-after-gauge-label');
     }
