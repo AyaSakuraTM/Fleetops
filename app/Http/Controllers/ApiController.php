@@ -538,7 +538,6 @@ class ApiController
             ->orderByDesc('id')
             ->first();
 
-        ```php
         if (in_array($actor['role'], ['Driver', 'User'], true)) {
             $accountDriverId = (int) DB::table('drivers')
                 ->where('user_id', $actor['id'])
@@ -563,7 +562,6 @@ class ApiController
                 return;
             }
         }
-```
 
         $now = date('Y-m-d H:i:s');
 
