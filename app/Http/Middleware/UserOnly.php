@@ -10,6 +10,8 @@ class UserOnly
 {
     public function handle(Request $request, Closure $next): Response
     {
+        abort_unless($request->user()?->status === 'active', 403, 'This account is inactive.');
+
         if ($request->user()?->role === 'Admin') {
             return redirect('/dashboard');
         }
