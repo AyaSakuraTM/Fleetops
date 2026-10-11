@@ -691,8 +691,10 @@ class ApiController
         ]);
     }
 
+
 public function getMyActiveDispatches(): void
-{ $actor = $this->authorizeRole(['Driver', 'User']);
+{
+    $actor = $this->authorizeRole(['Driver', 'User']);
 
     $driverId = (int) DB::table('drivers')
         ->where('user_id', $actor['id'])
@@ -724,18 +726,45 @@ public function getMyActiveDispatches(): void
             'dispatches.vehicle_id',
             'dispatches.origin',
             'dispatches.destination',
+            'dispatches.origin_lat',
+            'dispatches.origin_lng',
+            'dispatches.dest_lat',
+            'dispatches.dest_lng',
             'dispatches.status',
             'vehicles.vehicle_code',
             'vehicles.plate_number',
         ])
         ->orderByDesc('dispatches.id')
-        ->get();
+        ->get()
+        ->map(function ($dispatch) {
+            $location = DB::table('location_logs')
+                ->where('vehicle_id', $dispatch->vehicle_id)
+                ->orderByDesc('timestamp')
+                ->first([
+                    'latitude',
+                    'longitude',
+                    'speed',
+                    'timestamp',
+                ]);
+
+            $dispatch->current_latitude =
+                $location?->latitude;
+            $dispatch->current_longitude =
+                $location?->longitude;
+            $dispatch->current_speed =
+                $location?->speed;
+            $dispatch->location_updated_at =
+                $location?->timestamp;
+
+            return $dispatch;
+        });
 
     $this->jsonResponse([
         'success' => true,
         'dispatches' => $dispatches,
     ]);
 }
+
     /**
      * GET /api/analytics/dashboard
      */
