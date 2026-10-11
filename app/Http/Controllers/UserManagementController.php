@@ -68,20 +68,26 @@ class UserManagementController extends Controller
         return back()->with('status', 'User updated successfully.');
     }
 
-    public function destroy(Request $request, User $user): RedirectResponse
+    public function toggleStatus(Request $request, User $user): RedirectResponse
     {
         $this->authorizeAdmin($request);
 
         if ($user->id === $request->user()->id) {
-            return back()->withErrors(['user' => 'You cannot delete your own account.']);
+            return back()->withErrors(['user' => 'You cannot change your own account status.']);
         }
 
-        $userName = $user->name;
-        $user->delete();
+        $user->status = $user->status === 'active' ? 'inactive' : 'active';
+        $user->save();
 
-        Alert::log('🗑️', 'User Removed', "{$userName}'s account was deleted by {$request->user()->name}.", 'warning');
+        $status = $user->status;
+        Alert::log(
+            $status === 'inactive' ? 'OFF' : 'ON',
+            $status === 'inactive' ? 'User Deactivated' : 'User Reactivated',
+            "{$user->name}'s account was marked {$status} by {$request->user()->name}.",
+            $status === 'inactive' ? 'warning' : 'info',
+        );
 
-        return back()->with('status', 'User deleted successfully.');
+        return back()->with('status', "User account {$status} successfully.");
     }
 
     private function authorizeAdmin(Request $request): void
