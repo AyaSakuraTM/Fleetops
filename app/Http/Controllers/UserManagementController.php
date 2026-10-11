@@ -44,6 +44,29 @@ class UserManagementController extends Controller
     {
         $this->authorizeAdmin($request);
 
+        if ($request->boolean('status_toggle')) {
+            if ($user->id === $request->user()->id) {
+                return back()->withErrors(['user' => 'You cannot change your own account status.']);
+            }
+
+            $data = $request->validate([
+                'status' => ['required', Rule::in(['active', 'inactive'])],
+            ]);
+
+            $user->status = $data['status'];
+            $user->save();
+
+            $status = $user->status;
+            Alert::log(
+                $status === 'inactive' ? 'OFF' : 'ON',
+                $status === 'inactive' ? 'User Deactivated' : 'User Reactivated',
+                "{$user->name}'s account was marked {$status} by {$request->user()->name}.",
+                $status === 'inactive' ? 'warning' : 'info',
+            );
+
+            return back()->with('status', "User account {$status} successfully.");
+        }
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'email' => ['required', 'string', 'email', 'max:100', Rule::unique('users', 'email')->ignore($user->id)],
@@ -66,28 +89,6 @@ class UserManagementController extends Controller
         Alert::log('✏️', 'User Updated', "{$user->name}'s account was updated by {$request->user()->name}.");
 
         return back()->with('status', 'User updated successfully.');
-    }
-
-    public function toggleStatus(Request $request, User $user): RedirectResponse
-    {
-        $this->authorizeAdmin($request);
-
-        if ($user->id === $request->user()->id) {
-            return back()->withErrors(['user' => 'You cannot change your own account status.']);
-        }
-
-        $user->status = $user->status === 'active' ? 'inactive' : 'active';
-        $user->save();
-
-        $status = $user->status;
-        Alert::log(
-            $status === 'inactive' ? 'OFF' : 'ON',
-            $status === 'inactive' ? 'User Deactivated' : 'User Reactivated',
-            "{$user->name}'s account was marked {$status} by {$request->user()->name}.",
-            $status === 'inactive' ? 'warning' : 'info',
-        );
-
-        return back()->with('status', "User account {$status} successfully.");
     }
 
     private function authorizeAdmin(Request $request): void
