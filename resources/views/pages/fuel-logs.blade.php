@@ -58,15 +58,15 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
                             <td><?= htmlspecialchars($log['plate_number'] ?? 'Unknown plate', ENT_QUOTES, 'UTF-8') ?></td>
                             <td><?= htmlspecialchars($log['logged_at'] ?? '—', ENT_QUOTES, 'UTF-8') ?></td>
                             <td>
-    <?php if (isset($log['fuel_level_before'])): $beforeLevel = max(0, min(100, (float) $log['fuel_level_before'])); ?>
+                            <?php if (isset($log['fuel_level_before'])): $beforeLevel = max(0, min(100, (float) $log['fuel_level_before'])); $beforeLabel = $beforeLevel <= 0 ? 'Empty' : ($beforeLevel <= 25 ? 'Low' : ($beforeLevel <= 50 ? 'Half' : ($beforeLevel <= 75 ? 'High' : 'Full'))); ?>
         <div class="fuel-meter" role="progressbar" aria-label="Fuel level before refuel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $beforeLevel ?>"><span style="width:<?= $beforeLevel ?>%"></span></div>
-        <small><?= number_format($beforeLevel, 1) ?></small>
+                                <small><?= $beforeLabel ?></small>
     <?php else: ?>&mdash;<?php endif; ?>
 </td>
                             <td>
-    <?php if (isset($log['fuel_level_after'])): $afterLevel = max(0, min(100, (float) $log['fuel_level_after'])); ?>
+                            <?php if (isset($log['fuel_level_after'])): $afterLevel = max(0, min(100, (float) $log['fuel_level_after'])); $afterLabel = $afterLevel <= 0 ? 'Empty' : ($afterLevel <= 25 ? 'Low' : ($afterLevel <= 50 ? 'Half' : ($afterLevel <= 75 ? 'High' : 'Full'))); ?>
         <div class="fuel-meter" role="progressbar" aria-label="Fuel level after refuel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $afterLevel ?>"><span style="width:<?= $afterLevel ?>%"></span></div>
-        <small><?= number_format($afterLevel, 1) ?></small>
+                                <small><?= $afterLabel ?></small>
     <?php else: ?>&mdash;<?php endif; ?>
 </td>
                             <td class="fuel-proof-links">
@@ -125,14 +125,18 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
             <div class="fuel-input-grid">
                 <div class="form-group fuel-field">
                     <label for="fuel-level-before">Fuel level before</label>
-                    <input class="form-control" type="number" id="fuel-level-before" name="fuel_level_before" min="0" max="100" step="0.1" value="<?= htmlspecialchars((string) old('fuel_level_before', ''), ENT_QUOTES, 'UTF-8') ?>" readonly aria-describedby="fuel-level-help">
+                    <input class="form-control" type="number" id="fuel-level-before" name="fuel_level_before" min="0" max="100" step="0.1" value="<?= htmlspecialchars((string) old('fuel_level_before', ''), ENT_QUOTES, 'UTF-8') ?>" required aria-describedby="fuel-level-help">
+                    <div class="fuel-meter fuel-meter-preview" aria-hidden="true"><span id="fuel-before-meter"></span></div>
+                    <small class="fuel-gauge-label" id="fuel-before-gauge-label">Select a vehicle to load its saved reading.</small>
                 </div>
                 <div class="form-group fuel-field">
                     <label for="fuel-level-after">Fuel level after</label>
                     <input class="form-control" type="number" id="fuel-level-after" name="fuel_level_after" min="0" max="100" step="0.1" value="<?= htmlspecialchars((string) old('fuel_level_after', ''), ENT_QUOTES, 'UTF-8') ?>" required>
+                    <div class="fuel-meter fuel-meter-preview" aria-hidden="true"><span id="fuel-after-meter"></span></div>
+                    <small class="fuel-gauge-label" id="fuel-after-gauge-label">Enter the observed reading.</small>
                 </div>
             </div>
-            <small class="fuel-help" id="fuel-level-help">The before reading is taken from the vehicle record. Readings use a 0-100 scale.</small>
+            <small class="fuel-help" id="fuel-level-help">The before reading is prefilled from the saved vehicle reading. Adjust it to match the observed level; differences are flagged for review.</small>
             <div class="fuel-input-grid fuel-evidence-grid">
                 <div class="form-group fuel-field">
                     <label for="fuel-before-proof">Photo before refueling (JPG, PNG, or WebP; max 5 MB)</label>
@@ -187,6 +191,8 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
     .fuel-log-panel td strong { color: var(--text); }
     .fuel-meter { width: 110px; max-width: 100%; height: 9px; overflow: hidden; margin-bottom: 4px; border-radius: 999px; background: var(--border); }
     .fuel-meter span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #4cc9f0, #4361ee); }
+    .fuel-meter-preview { margin: 8px 0 3px; }
+    .fuel-gauge-label { color: var(--muted); }
     .fuel-log-panel td small { color: var(--muted); }
     .fuel-proof-links { min-width: 125px; }
     .fuel-proof-links a { display: block; width: fit-content; margin: 2px 0; }
@@ -272,7 +278,33 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
         const selectedVehicle = vehicleSelect.selectedOptions[0];
         fuelBeforeInput.value = selectedVehicle?.dataset.fuelLevel ?? '';
         fuelAfterInput.value = '';
+        updateGauge(fuelBeforeInput, 'fuel-before-meter', 'fuel-before-gauge-label');
+        updateGauge(fuelAfterInput, 'fuel-after-meter', 'fuel-after-gauge-label');
     });
+
+    function updateGauge(input, meterId, labelId) {
+        const value = Number(input?.value);
+        const meter = document.getElementById(meterId);
+        const label = document.getElementById(labelId);
+        if (!meter || !label) return;
+        if (!input?.value || !Number.isFinite(value)) {
+            meter.style.width = '0%';
+            label.textContent = 'Enter a reading to see the gauge.';
+            return;
+        }
+
+        const level = Math.max(0, Math.min(100, value));
+        meter.style.width = `${level}%`;
+        label.textContent = level === 0 ? 'Empty' : level <= 25 ? 'Low' : level <= 50 ? 'Half' : level <= 75 ? 'High' : 'Full';
+    }
+
+    fuelBeforeInput?.addEventListener('input', () => updateGauge(fuelBeforeInput, 'fuel-before-meter', 'fuel-before-gauge-label'));
+    fuelAfterInput?.addEventListener('input', () => updateGauge(fuelAfterInput, 'fuel-after-meter', 'fuel-after-gauge-label'));
+    if (vehicleSelect?.value) {
+        if (!fuelBeforeInput.value) fuelBeforeInput.value = vehicleSelect.selectedOptions[0]?.dataset.fuelLevel ?? '';
+        updateGauge(fuelBeforeInput, 'fuel-before-meter', 'fuel-before-gauge-label');
+        updateGauge(fuelAfterInput, 'fuel-after-meter', 'fuel-after-gauge-label');
+    }
 
     <?php if ($errors->any()): ?>
     window.openFuelModal();
