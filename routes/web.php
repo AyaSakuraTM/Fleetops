@@ -56,7 +56,6 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
         Route::post('/fuel-logs', [FleetCostController::class, 'storeFuelLog'])->name('fuel-logs.store');
         Route::post('/usermanagement', [UserManagementController::class, 'store'])->name('usermanagement.store');
         Route::put('/usermanagement/{user}', [UserManagementController::class, 'update'])->name('usermanagement.update');
-        Route::delete('/usermanagement/{user}', [UserManagementController::class, 'destroy'])->name('usermanagement.destroy');
 
         Route::put('/settings/profile', [SettingsController::class, 'updateProfile'])->name('settings.profile');
         Route::put('/settings/password', [SettingsController::class, 'updatePassword'])->name('settings.password');
