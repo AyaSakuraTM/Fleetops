@@ -201,7 +201,7 @@ class PageController extends Controller
             'users' => $page === 'usermanagement'
                 ? User::orderBy('name')->get(['id', 'name', 'email', 'role', 'status'])->all()
                 : [],
-            'userRoles' => ['User', 'Admin'],
+            'userRoles' => ['User', 'Driver', 'Admin'],
             'vehicleOptions' => Vehicle::orderBy('plate_number')->get(['id', 'name', 'type', 'plate_number', 'fuel_level'])->all(),
             'driverOptions' => $page === 'fuel-logs'
                 ? DB::table('drivers')
