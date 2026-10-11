@@ -691,6 +691,51 @@ class ApiController
         ]);
     }
 
+public function getMyActiveDispatches(): void
+{ $actor = $this->authorizeRole(['Driver', 'User']);
+
+    $driverId = (int) DB::table('drivers')
+        ->where('user_id', $actor['id'])
+        ->value('id');
+
+    if (!$driverId) {
+        $this->jsonResponse([
+            'success' => false,
+            'error' => 'No driver profile is linked to this account.',
+        ], 403);
+        return;
+    }
+
+    $dispatches = DB::table('dispatches')
+        ->join(
+            'vehicles',
+            'dispatches.vehicle_id',
+            '=',
+            'vehicles.id'
+        )
+        ->where('dispatches.driver_id', $driverId)
+        ->whereRaw(
+            'LOWER(TRIM(dispatches.status)) = ?',
+            ['active']
+        )
+        ->select([
+            'dispatches.id',
+            'dispatches.dispatch_no',
+            'dispatches.vehicle_id',
+            'dispatches.origin',
+            'dispatches.destination',
+            'dispatches.status',
+            'vehicles.vehicle_code',
+            'vehicles.plate_number',
+        ])
+        ->orderByDesc('dispatches.id')
+        ->get();
+
+    $this->jsonResponse([
+        'success' => true,
+        'dispatches' => $dispatches,
+    ]);
+}
     /**
      * GET /api/analytics/dashboard
      */
