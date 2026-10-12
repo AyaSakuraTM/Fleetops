@@ -900,21 +900,46 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
 </script>
 
 <style>
-.place-suggestions{position:relative;z-index:10000}.place-suggestion-list{position:absolute;top:0;left:0;right:0;background:var(--surface,#fff);border:1px solid var(--border,#ddd);border-radius:8px;box-shadow:0 8px 20px #0002;max-height:220px;overflow:auto}.place-suggestion{display:block;width:100%;padding:10px 12px;text-align:left;background:transparent;color:var(--text,inherit);border:0;border-bottom:1px solid var(--border,#eee);cursor:pointer}.place-suggestion:hover,.place-suggestion:focus{background:var(--accent-light,#eef5ff)}.place-search-help{font-size:.75rem;color:var(--muted,#667085);margin-top:4px}
+.place-suggestions{position:relative;z-index:10000;width:100%}.place-suggestion-list{position:absolute;top:4px;left:0;right:0;background:var(--surface,#fff);color:var(--text,#222);border:1px solid var(--border,#ddd);border-radius:8px;box-shadow:0 8px 24px #0003;max-height:min(320px,45vh);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;z-index:10001;scrollbar-width:thin}.place-suggestion{display:block;width:100%;padding:11px 12px;text-align:left;white-space:normal;overflow-wrap:anywhere;line-height:1.35;background:transparent;color:inherit;border:0;border-bottom:1px solid var(--border,#eee);cursor:pointer}.place-suggestion:last-child{border-bottom:0}.place-suggestion:hover,.place-suggestion:focus,.place-suggestion.active{background:var(--accent-light,#eef5ff);outline:none}.place-search-status{padding:10px 12px;font-size:.85rem;color:var(--muted,#667085)}.place-search-help{font-size:.75rem;color:var(--muted,#667085);margin-top:4px}
 </style>
 <script>
 (function(){
  const endpoint=@json(route('dispatches.place-search'));
- function setup(inputId,latId,lngId,suggestionsId){
-  const input=document.getElementById(inputId), lat=document.getElementById(latId), lng=document.getElementById(lngId), host=document.getElementById(suggestionsId);
+ function setup(inputId,latId,lngId,hostId){
+  const input=document.getElementById(inputId),lat=document.getElementById(latId),lng=document.getElementById(lngId),host=document.getElementById(hostId);
   if(!input||!lat||!lng||!host)return;
-  let timer=null, controller=null, selectedLabel='';
+  let timer=null,controller=null,requestId=0,selectedLabel='',activeIndex=-1;
   const clearCoords=()=>{lat.value='';lng.value='';selectedLabel='';};
-  input.addEventListener('input',()=>{clearCoords();clearTimeout(timer);if(controller)controller.abort();host.replaceChildren();const q=input.value.trim();if(q.length<2)return;
-   timer=setTimeout(async()=>{controller=new AbortController();try{const url=new URL(endpoint,window.location.origin);url.searchParams.set('q',q);const response=await fetch(url,{headers:{'Accept':'application/json'},signal:controller.signal});if(!response.ok)return;const data=await response.json();if(input.value.trim()!==q)return;const list=document.createElement('div');list.className='place-suggestion-list';(data.results||[]).forEach(place=>{const btn=document.createElement('button');btn.type='button';btn.className='place-suggestion';btn.textContent=place.label;btn.addEventListener('click',()=>{input.value=place.label;lat.value=place.lat;lng.value=place.lng;selectedLabel=place.label;host.replaceChildren();});list.appendChild(btn);});if(list.childElementCount){host.replaceChildren(list);}else host.replaceChildren();}catch(e){if(e.name!=='AbortError')console.warn('Place search failed',e);}},350);
+  const close=()=>{host.replaceChildren();activeIndex=-1;input.setAttribute('aria-expanded','false');};
+  const showStatus=(message)=>{const box=document.createElement('div');box.className='place-suggestion-list';const item=document.createElement('div');item.className='place-search-status';item.textContent=message;box.appendChild(item);host.replaceChildren(box);input.setAttribute('aria-expanded','true');};
+  function choose(place){input.value=place.label;lat.value=String(place.lat);lng.value=String(place.lng);selectedLabel=place.label;close();}
+  function render(results){
+   const box=document.createElement('div');box.className='place-suggestion-list';box.setAttribute('role','listbox');
+   results.forEach((place,index)=>{const btn=document.createElement('button');btn.type='button';btn.className='place-suggestion';btn.setAttribute('role','option');btn.setAttribute('aria-selected','false');btn.dataset.index=String(index);btn.textContent=place.label;btn.addEventListener('pointerdown',e=>e.preventDefault());btn.addEventListener('click',()=>choose(place));box.appendChild(btn);});
+   if(results.length){host.replaceChildren(box);input.setAttribute('aria-expanded','true');}else close();
+  }
+  input.setAttribute('aria-autocomplete','list');input.setAttribute('aria-expanded','false');
+  input.addEventListener('input',()=>{
+   clearCoords();clearTimeout(timer);if(controller)controller.abort();const id=++requestId;const q=input.value.trim();close();if(q.length<2)return;
+   timer=setTimeout(async()=>{controller=new AbortController();showStatus('Searching places…');try{
+    const url=new URL(endpoint,window.location.origin);url.searchParams.set('q',q);
+    const response=await fetch(url,{headers:{'Accept':'application/json'},credentials:'same-origin',signal:controller.signal});
+    if(!response.ok)throw new Error('Search request failed ('+response.status+')');
+    const data=await response.json();if(id!==requestId||input.value.trim()!==q)return;
+    render(Array.isArray(data.results)?data.results:[]);
+    if(!data.results||!data.results.length)showStatus('No matching places. Try adding the barangay or city.');
+   }catch(e){if(e.name!=='AbortError'&&id===requestId){showStatus('Could not load suggestions. Please try again.');console.warn('Place search failed',e);}}
+   },200);
+  });
+  input.addEventListener('keydown',e=>{
+   const buttons=Array.from(host.querySelectorAll('.place-suggestion'));
+   if(e.key==='ArrowDown'&&buttons.length){e.preventDefault();activeIndex=Math.min(activeIndex+1,buttons.length-1);buttons.forEach((b,i)=>{b.classList.toggle('active',i===activeIndex);b.setAttribute('aria-selected',i===activeIndex?'true':'false');});buttons[activeIndex].scrollIntoView({block:'nearest'});}
+   else if(e.key==='ArrowUp'&&buttons.length){e.preventDefault();activeIndex=Math.max(activeIndex-1,0);buttons.forEach((b,i)=>{b.classList.toggle('active',i===activeIndex);b.setAttribute('aria-selected',i===activeIndex?'true':'false');});buttons[activeIndex].scrollIntoView({block:'nearest'});}
+   else if(e.key==='Enter'&&buttons.length&&activeIndex>=0){e.preventDefault();buttons[activeIndex].click();}
+   else if(e.key==='Escape')close();
   });
   input.addEventListener('change',()=>{if(input.value.trim()!==selectedLabel)clearCoords();});
-  input.addEventListener('blur',()=>setTimeout(()=>host.replaceChildren(),180));
+  document.addEventListener('pointerdown',e=>{if(!host.contains(e.target)&&e.target!==input)close();});
  }
  setup('dd-origin','dd-origin-lat','dd-origin-lng','dd-origin-suggestions');
  setup('dd-destination','dd-destination-lat','dd-destination-lng','dd-destination-suggestions');
