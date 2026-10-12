@@ -129,7 +129,7 @@ class PageController extends Controller
         }
 
         $vehicleCount = DB::table('vehicles')->count();
-        $activeVehicleCount = DB::table('vehicles')->whereRaw('LOWER(status) IN (?, ?)', ['active', 'available'])->count();
+        $activeVehicleCount = DB::table('vehicles')->whereRaw('LOWER(TRIM(status)) IN (?, ?)', ['active', 'available'])->count();
         $maintenanceVehicleCount = DB::table('vehicles')->whereRaw('LOWER(status) = ?', ['maintenance'])->count();
         $reservationScope = DB::table('reservations');
         if (Schema::hasColumn('reservations', 'user_id')) {
