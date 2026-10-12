@@ -55,6 +55,11 @@ Route::middleware('auth:sanctum')->group(function () {
         'getMyActiveDispatches',
     ]);
 
+    Route::post('/mobile/dispatches/{dispatchId}/complete', [
+        ApiController::class,
+        'completeMyDispatch',
+    ])->whereNumber('dispatchId');
+
 });
 
 
