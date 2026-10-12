@@ -692,11 +692,13 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
                 </div>
                 <div class="form-group">
                     <label for="dd-origin">Origin</label>
-                    <input class="form-control" type="text" id="dd-origin" name="origin" maxlength="255" placeholder="e.g. Main Office">
+                    <input class="form-control place-search-input" type="text" id="dd-origin" name="origin" maxlength="255" autocomplete="off" placeholder="Type a place, e.g. SM North" required>
+                    <input type="hidden" id="dd-origin-lat" name="origin_lat"><input type="hidden" id="dd-origin-lng" name="origin_lng"><div class="place-suggestions" id="dd-origin-suggestions" role="listbox"></div>
                 </div>
                 <div class="form-group">
                     <label for="dd-destination">Destination</label>
-                    <input class="form-control" type="text" id="dd-destination" name="destination" required maxlength="255" placeholder="e.g. Cebu South Bus Terminal">
+                    <input class="form-control place-search-input" type="text" id="dd-destination" name="destination" required maxlength="255" autocomplete="off" placeholder="Type a place, e.g. SM North" >
+                    <input type="hidden" id="dd-destination-lat" name="dest_lat"><input type="hidden" id="dd-destination-lng" name="dest_lng"><div class="place-suggestions" id="dd-destination-suggestions" role="listbox"></div>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label for="dd-priority">Priority</label>
@@ -895,4 +897,26 @@ $drivers      = $dashboard['availableDrivers']       ?? [];
     <?php if ($errors->any() && (old('employee_id') !== null || ! $dashboard['isAdmin'])): ?>
         hubModal('modal-new-reservation');
     <?php endif; ?>
+</script>
+
+<style>
+.place-suggestions{position:relative;z-index:10000}.place-suggestion-list{position:absolute;top:0;left:0;right:0;background:var(--surface,#fff);border:1px solid var(--border,#ddd);border-radius:8px;box-shadow:0 8px 20px #0002;max-height:220px;overflow:auto}.place-suggestion{display:block;width:100%;padding:10px 12px;text-align:left;background:transparent;color:var(--text,inherit);border:0;border-bottom:1px solid var(--border,#eee);cursor:pointer}.place-suggestion:hover,.place-suggestion:focus{background:var(--accent-light,#eef5ff)}.place-search-help{font-size:.75rem;color:var(--muted,#667085);margin-top:4px}
+</style>
+<script>
+(function(){
+ const endpoint=@json(route('dispatches.place-search'));
+ function setup(inputId,latId,lngId,suggestionsId){
+  const input=document.getElementById(inputId), lat=document.getElementById(latId), lng=document.getElementById(lngId), host=document.getElementById(suggestionsId);
+  if(!input||!lat||!lng||!host)return;
+  let timer=null, controller=null, selectedLabel='';
+  const clearCoords=()=>{lat.value='';lng.value='';selectedLabel='';};
+  input.addEventListener('input',()=>{clearCoords();clearTimeout(timer);if(controller)controller.abort();host.replaceChildren();const q=input.value.trim();if(q.length<2)return;
+   timer=setTimeout(async()=>{controller=new AbortController();try{const url=new URL(endpoint,window.location.origin);url.searchParams.set('q',q);const response=await fetch(url,{headers:{'Accept':'application/json'},signal:controller.signal});if(!response.ok)return;const data=await response.json();if(input.value.trim()!==q)return;const list=document.createElement('div');list.className='place-suggestion-list';(data.results||[]).forEach(place=>{const btn=document.createElement('button');btn.type='button';btn.className='place-suggestion';btn.textContent=place.label;btn.addEventListener('click',()=>{input.value=place.label;lat.value=place.lat;lng.value=place.lng;selectedLabel=place.label;host.replaceChildren();});list.appendChild(btn);});if(list.childElementCount){host.replaceChildren(list);}else host.replaceChildren();}catch(e){if(e.name!=='AbortError')console.warn('Place search failed',e);}},350);
+  });
+  input.addEventListener('change',()=>{if(input.value.trim()!==selectedLabel)clearCoords();});
+  input.addEventListener('blur',()=>setTimeout(()=>host.replaceChildren(),180));
+ }
+ setup('dd-origin','dd-origin-lat','dd-origin-lng','dd-origin-suggestions');
+ setup('dd-destination','dd-destination-lat','dd-destination-lng','dd-destination-suggestions');
+})();
 </script>
