@@ -86,9 +86,9 @@ class OpenRouteServiceGeocoder
         }
 
         try {
-            $url = 'https://api.heigit.org/pelias/v1/search?' . http_build_query([
+            $url = 'https://api.heigit.org/pelias/v1/autocomplete?' . http_build_query([
                 'api_key' => $apiKey,
-                'size' => max(1, min(8, $limit)),
+                'size' => 20,
                 'text' => $query,
                 'boundary.country' => 'PHL',
             ]);
