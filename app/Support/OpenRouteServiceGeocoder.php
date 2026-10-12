@@ -77,4 +77,40 @@ class OpenRouteServiceGeocoder
             return null;
         }
     }
+    public function search(string $query, int $limit = 5): array
+    {
+        $query = trim($query);
+        $apiKey = getenv('OPENROUTESERVICE_API_KEY');
+        if (mb_strlen($query) < 2 || $apiKey === false || trim($apiKey) === '' || !function_exists('curl_init')) {
+            return [];
+        }
+
+        try {
+            $url = 'https://api.heigit.org/pelias/v1/search?' . http_build_query([
+                'api_key' => $apiKey,
+                'size' => max(1, min(8, $limit)),
+                'text' => $query,
+                'boundary.country' => 'PHL',
+            ]);
+            $curl = curl_init($url);
+            if ($curl === false) return [];
+            curl_setopt_array($curl, [CURLOPT_HTTPHEADER => ['Accept: application/json'], CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 10]);
+            $body = curl_exec($curl);
+            $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            curl_close($curl);
+            if (!is_string($body) || $status < 200 || $status >= 300) return [];
+            $json = json_decode($body, true);
+            $results = [];
+            foreach (($json['features'] ?? []) as $feature) {
+                $coords = $feature['geometry']['coordinates'] ?? null;
+                $props = $feature['properties'] ?? [];
+                if (!is_array($coords) || !$this->hasValidCoordinates($coords[1] ?? null, $coords[0] ?? null)) continue;
+                $label = trim((string) ($props['label'] ?? $props['name'] ?? ''));
+                if ($label === '') continue;
+                $results[] = ['label' => $label, 'lat' => (float) $coords[1], 'lng' => (float) $coords[0]];
+            }
+            return $results;
+        } catch (\\Throwable) { return []; }
+    }
+
 }
