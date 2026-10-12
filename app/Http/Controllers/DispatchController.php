@@ -11,6 +11,13 @@ use Illuminate\Support\Facades\DB;
 
 class DispatchController extends Controller
 {
+    public function searchPlaces(Request $request)
+    {
+        $query = trim((string) $request->query('q', ''));
+        if (mb_strlen($query) < 2) return response()->json(['results' => []]);
+        return response()->json(['results' => app(OpenRouteServiceGeocoder::class)->search($query)]);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -18,6 +25,10 @@ class DispatchController extends Controller
             'driver_id' => 'required|exists:drivers,id',
             'destination' => 'required|string|max:255',
             'origin' => 'required|string|max:255',
+            'origin_lat' => 'nullable|numeric|between:-90,90',
+            'origin_lng' => 'nullable|numeric|between:-180,180',
+            'dest_lat' => 'nullable|numeric|between:-90,90',
+            'dest_lng' => 'nullable|numeric|between:-180,180',
             'priority' => 'nullable|in:Normal,High,Urgent',
         ]);
 
@@ -50,8 +61,12 @@ class DispatchController extends Controller
         }
 
         $geocoder = app(OpenRouteServiceGeocoder::class);
-        $originCoordinates = $geocoder->geocode($validated['origin']);
-        $destinationCoordinates = $geocoder->geocode($validated['destination']);
+        $originCoordinates = isset($validated['origin_lat'], $validated['origin_lng'])
+            ? ['lat' => (float) $validated['origin_lat'], 'lng' => (float) $validated['origin_lng']]
+            : $geocoder->geocode($validated['origin']);
+        $destinationCoordinates = isset($validated['dest_lat'], $validated['dest_lng'])
+            ? ['lat' => (float) $validated['dest_lat'], 'lng' => (float) $validated['dest_lng']]
+            : $geocoder->geocode($validated['destination']);
         $geocodingErrors = [];
         if ($originCoordinates === null) {
             $geocodingErrors['origin'] = 'Unable to geocode the dispatch origin. Check the address and try again.';
