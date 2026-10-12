@@ -1,3 +1,5 @@
+            return [];
+        }
 <?php
 
 namespace App\Support;
