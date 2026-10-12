@@ -115,7 +115,11 @@ class PageController extends Controller
                 ])
                 ->all();
         }
-        $alertsQuery = DB::table('alerts')->orderByDesc('created_at');
+        // Route deviation warnings are intentionally omitted from the dashboard's
+        // Recent Alerts & Fleet Events panel; other alert types remain visible.
+        $alertsQuery = DB::table('alerts')
+            ->where('title', '<>', 'Route deviation')
+            ->orderByDesc('created_at');
         $unreadAlertsQuery = Alert::whereNull('read_at');
         $notificationsQuery = Alert::orderByDesc('created_at');
         if ($user->role !== 'Admin') {
