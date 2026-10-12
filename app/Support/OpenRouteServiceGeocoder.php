@@ -110,7 +110,9 @@ class OpenRouteServiceGeocoder
                 $results[] = ['label' => $label, 'lat' => (float) $coords[1], 'lng' => (float) $coords[0]];
             }
             return $results;
-        } catch (\\Throwable) { return []; }
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
 }
