@@ -595,6 +595,19 @@ class ApiController
         $arrivalDetected = false;
 
         $addAlert = function (string $type, string $message, string $severity) use ($vehicleId, $trip, $vehicle, $now, &$notificationsCreated) {
+            // Route deviation is a state alert: only create it once per trip to avoid
+            // filling the dashboard with the same warning on every GPS update.
+            if ($type === 'Route deviation' && !empty($trip['id'])) {
+                $alreadyLogged = DB::table('alerts')
+                    ->where('trip_record_id', $trip['id'])
+                    ->where('title', 'Route deviation')
+                    ->exists();
+
+                if ($alreadyLogged) {
+                    return;
+                }
+            }
+
             $alertId = DB::table('alerts')->insertGetId([
                 'vehicle_id' => $vehicleId,
                 'trip_record_id' => $trip['id'] ?? null,
