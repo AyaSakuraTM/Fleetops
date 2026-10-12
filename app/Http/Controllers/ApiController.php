@@ -692,6 +692,85 @@ class ApiController
     }
 
 
+
+public function completeMyDispatch(int $dispatchId): void
+{
+    $actor = $this->authorizeRole(['Driver', 'User']);
+
+    $driverId = (int) DB::table('drivers')
+        ->where('user_id', $actor['id'])
+        ->value('id');
+
+    if (!$driverId) {
+        $this->jsonResponse([
+            'success' => false,
+            'error' => 'No driver profile is linked to this account.',
+        ], 403);
+        return;
+    }
+
+    $dispatch = DB::table('dispatches')
+        ->where('id', $dispatchId)
+        ->where('driver_id', $driverId)
+        ->whereRaw('LOWER(TRIM(status)) = ?', ['active'])
+        ->first();
+
+    if (!$dispatch) {
+        $this->jsonResponse([
+            'success' => false,
+            'error' => 'Active dispatch not found for this driver.',
+        ], 404);
+        return;
+    }
+
+    $now = now();
+
+    DB::transaction(function () use ($dispatch, $now) {
+        DB::table('dispatches')
+            ->where('id', $dispatch->id)
+            ->whereRaw('LOWER(TRIM(status)) = ?', ['active'])
+            ->update([
+                'status' => 'Completed',
+                'updated_at' => $now,
+            ]);
+
+        $trip = DB::table('trip_records')
+            ->where('dispatch_id', $dispatch->id)
+            ->whereRaw('LOWER(TRIM(status)) <> ?', ['completed'])
+            ->orderByDesc('id')
+            ->first();
+
+        if ($trip) {
+            $duration = $trip->departure_time
+                ? max(0, (int) $now->diffInMinutes(\Illuminate\Support\Carbon::parse($trip->departure_time)))
+                : 0;
+
+            DB::table('trip_records')
+                ->where('id', $trip->id)
+                ->update([
+                    'status' => 'Completed',
+                    'actual_arrival' => $now,
+                    'total_duration' => $duration,
+                    'updated_at' => $now,
+                ]);
+        }
+
+        DB::table('vehicles')
+            ->where('id', $dispatch->vehicle_id)
+            ->update([
+                'status' => 'Active',
+                'updated_at' => $now,
+            ]);
+    });
+
+    $this->jsonResponse([
+        'success' => true,
+        'message' => 'Delivery marked as completed.',
+        'dispatch_id' => (int) $dispatch->id,
+        'status' => 'Completed',
+    ]);
+}
+
 public function getMyActiveDispatches(): void
 {
     $actor = $this->authorizeRole(['Driver', 'User']);
