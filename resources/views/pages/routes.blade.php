@@ -492,40 +492,32 @@
     }
 
     function renderFleetMarkers() {
-        const selectedVehicle = fleetData.find(v => v.id === activeVehicleId);
+        // Keep every currently reporting vehicle on the map; selecting a dispatch is
+        // only for opening its details, not a prerequisite for seeing its location.
+        const visibleVehicles = fleetData.filter(hasValidCoordinates);
+        const visibleIds = new Set(visibleVehicles.map(vehicle => String(vehicle.id)));
+
         Object.keys(vehicleMarkers).forEach(id => {
-            if (!selectedVehicle || Number(id) !== selectedVehicle.id) {
-                if (map.hasLayer(vehicleMarkers[id])) {
-                    map.removeLayer(vehicleMarkers[id]);
-                }
+            if (!visibleIds.has(String(id))) {
+                if (map.hasLayer(vehicleMarkers[id])) map.removeLayer(vehicleMarkers[id]);
                 delete vehicleMarkers[id];
             }
         });
 
-        if (!selectedVehicle) return;
+        visibleVehicles.forEach(vehicle => {
+            const latLng = [Number(vehicle.latitude), Number(vehicle.longitude)];
+            const icon = createTruckIcon(vehicle.vehicle_code, vehicle.status, vehicle.speed, vehicle.route_color);
 
-        if (!hasValidCoordinates(selectedVehicle)) {
-            // No live coordinates yet — leave the map centered, remove the marker if present.
-            if (vehicleMarkers[selectedVehicle.id]) {
-                if (map.hasLayer(vehicleMarkers[selectedVehicle.id])) map.removeLayer(vehicleMarkers[selectedVehicle.id]);
-                delete vehicleMarkers[selectedVehicle.id];
+            if (vehicleMarkers[vehicle.id]) {
+                vehicleMarkers[vehicle.id].setLatLng(latLng);
+                vehicleMarkers[vehicle.id].setIcon(icon);
+                if (!map.hasLayer(vehicleMarkers[vehicle.id])) vehicleMarkers[vehicle.id].addTo(map);
+            } else {
+                const marker = L.marker(latLng, { icon: icon }).addTo(map);
+                marker.on('click', () => selectVehicle(vehicle.id));
+                vehicleMarkers[vehicle.id] = marker;
             }
-            return;
-        }
-        const latLng = [Number(selectedVehicle.latitude), Number(selectedVehicle.longitude)];
-        const icon = createTruckIcon(selectedVehicle.vehicle_code, selectedVehicle.status, selectedVehicle.speed, selectedVehicle.route_color);
-
-        if (vehicleMarkers[selectedVehicle.id]) {
-            vehicleMarkers[selectedVehicle.id].setLatLng(latLng);
-            vehicleMarkers[selectedVehicle.id].setIcon(icon);
-            if (!map.hasLayer(vehicleMarkers[selectedVehicle.id])) {
-                vehicleMarkers[selectedVehicle.id].addTo(map);
-            }
-        } else {
-            const marker = L.marker(latLng, { icon: icon }).addTo(map);
-            marker.on('click', () => selectVehicle(selectedVehicle.id));
-            vehicleMarkers[selectedVehicle.id] = marker;
-        }
+        });
     }
 
     function selectVehicle(vehicleId, selectedDispatch = null) {

@@ -71,13 +71,13 @@ class ApiController
             $trip = $this->findActiveTripForVehicle($state, $v['id']);
             $loc = $state['locations'][$v['id']] ?? null;
 
-            if ($loc === null && $trip) {
-                $loc = [
-                    'latitude' => $trip['origin_lat'] !== null ? (float)$trip['origin_lat'] : null,
-                    'longitude' => $trip['origin_lng'] !== null ? (float)$trip['origin_lng'] : null,
-                    'speed' => 0.0,
-                    'timestamp' => $trip['departure_time'] ?? date('Y-m-d H:i:s'),
-                ];
+            // Only expose recent GPS positions as live markers. A stopped tracker must
+            // not leave its last position displayed indefinitely.
+            if ($loc !== null) {
+                $locationTimestamp = strtotime((string)($loc['timestamp'] ?? ''));
+                if ($locationTimestamp === false || $locationTimestamp < (time() - 60)) {
+                    $loc = null;
+                }
             }
             if ($loc === null) {
                 $loc = ['latitude' => null, 'longitude' => null, 'speed' => 0.0, 'timestamp' => null];
@@ -679,16 +679,8 @@ class ApiController
                         }
                     }
 
-                    // Check Excessive Idle Time (speed = 0)
-                    if ($speed == 0) {
-                        $addAlert('Excessive idle time', "Excessive idle time logged for Vehicle #{$vehicle->vehicle_code} (Stationary at GPS location).", 'warning');
-                    }
                 }
             } else {
-                // Check Excessive Idle Time even when coordinates are unavailable.
-                if ($speed == 0) {
-                    $addAlert('Excessive idle time', "Excessive idle time logged for Vehicle #{$vehicle->vehicle_code} (Stationary at GPS location).", 'warning');
-                }
             }
         }
 
