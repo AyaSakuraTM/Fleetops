@@ -387,11 +387,14 @@
         loadFleetData();
         loadActiveDispatches();
 
-        // Auto-refresh vehicle locations every 5 seconds without page reload
+        // Refresh live markers frequently without requiring a manual page reload.
+        // Live GPS is polled every 2 seconds; dispatch data is refreshed less often.
         refreshInterval = setInterval(function () {
             loadFleetData();
+        }, 2000);
+        setInterval(function () {
             loadActiveDispatches();
-        }, 5000);
+        }, 10000);
 
         const globalSearchInput = document.getElementById('globalSearchInput');
         if (globalSearchInput) {
@@ -456,8 +459,11 @@
     }
 
     function loadFleetData() {
-        fetch(apiBasePath + '/vehicles/live')
-            .then(res => res.json())
+        fetch(apiBasePath + '/vehicles/live?_=' + Date.now(), { cache: 'no-store', headers: { Accept: 'application/json' } })
+            .then(res => {
+                if (!res.ok) throw new Error('Live vehicle request failed: HTTP ' + res.status);
+                return res.json();
+            })
             .then(data => {
                 if (data.success && data.vehicles) {
                     fleetData = data.vehicles;

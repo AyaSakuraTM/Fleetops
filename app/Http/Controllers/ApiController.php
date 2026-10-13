@@ -75,7 +75,7 @@ class ApiController
             // not leave its last position displayed indefinitely.
             if ($loc !== null) {
                 $locationTimestamp = strtotime((string)($loc['timestamp'] ?? ''));
-                if ($locationTimestamp === false || $locationTimestamp < (time() - 60)) {
+                if ($locationTimestamp === false || $locationTimestamp < (time() - 20)) {
                     $loc = null;
                 }
             }
