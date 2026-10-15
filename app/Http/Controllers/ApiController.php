@@ -980,34 +980,95 @@ public function getMyActiveDispatches(): void
     // Helper utilities
     private function computeEtaDetails(array $trip, ?array $loc, ?array $routeResponse = null): array
     {
-        $routeResponse = $routeResponse ?? $this->requestOpenRouteServiceRouteForTrip($trip, $loc);
-        $summary = $this->getOpenRouteServiceSummary($routeResponse);
-        if (!is_array($summary) || !is_numeric($summary['distance'] ?? null) || !is_numeric($summary['duration'] ?? null)) {
-            throw new \RuntimeException('OpenRouteService response contains no valid route distance and duration.');
+        // Prefer Google Routes traffic-aware duration when configured. ORS remains the fallback.
+        $googleEta = $this->requestGoogleTrafficAwareEta($trip, $loc);
+        if ($googleEta !== null) {
+            $remainingDistKm = round($googleEta['distance_meters'] / 1000, 1);
+            $timeMins = max(1, (int) round($googleEta['duration_seconds'] / 60));
+            $etaSource = 'Google traffic-aware estimate';
+        } else {
+            $routeResponse = $routeResponse ?? $this->requestOpenRouteServiceRouteForTrip($trip, $loc);
+            $summary = $this->getOpenRouteServiceSummary($routeResponse);
+            if (!is_array($summary) || !is_numeric($summary['distance'] ?? null) || !is_numeric($summary['duration'] ?? null)) {
+                throw new \\RuntimeException('OpenRouteService response contains no valid route distance and duration.');
+            }
+            $remainingDistKm = round((float) $summary['distance'] / 1000, 1);
+            $timeMins = max(1, (int) round((float) $summary['duration'] / 60));
+            $etaSource = 'OpenRouteService estimate (live traffic unavailable)';
         }
-
-        $remainingDistKm = round((float)$summary['distance'] / 1000, 1);
-        $timeMins = (int)round((float)$summary['duration'] / 60);
 
         $expectedArrivalTs = time() + ($timeMins * 60);
-
-        $formattedTime = '';
-        if ($timeMins >= 60) {
-            $h = floor($timeMins / 60);
-            $m = $timeMins % 60;
-            $formattedTime = "{$h} hr " . ($m > 0 ? "{$m} mins" : "");
-        } else {
-            $formattedTime = "{$timeMins} mins";
-        }
-
         return [
             'remaining_distance_km' => $remainingDistKm,
             'remaining_travel_time_mins' => $timeMins,
-            'remaining_time_formatted' => $formattedTime,
+            'remaining_time_formatted' => $this->formatRouteTravelTime($timeMins),
             'expected_arrival_time' => date('h:i A', $expectedArrivalTs),
             'expected_arrival_timestamp' => date('Y-m-d H:i:s', $expectedArrivalTs),
-            'eta_accuracy_pct' => 97.2,
+            'eta_source' => $etaSource,
+            'eta_accuracy_pct' => null,
         ];
+    }
+
+    /**
+     * Google Routes API traffic-aware ETA, if configured.
+     * Set GOOGLE_MAPS_ROUTES_API_KEY and enable Routes API in the Google Cloud project.
+     * Returns null when unavailable so the existing OpenRouteService fallback remains functional.
+     */
+    private function requestGoogleTrafficAwareEta(array $trip, ?array $loc): ?array
+    {
+        $apiKey = getenv('GOOGLE_MAPS_ROUTES_API_KEY');
+        if ($apiKey === false || trim($apiKey) === '' || !function_exists('curl_init')) return null;
+
+        $currentLat = $loc['latitude'] ?? null;
+        $currentLng = $loc['longitude'] ?? null;
+        $hasCurrentLocation = is_numeric($currentLat) && is_numeric($currentLng)
+            && (float) $currentLat >= -90 && (float) $currentLat <= 90
+            && (float) $currentLng >= -180 && (float) $currentLng <= 180;
+        $originLat = $hasCurrentLocation ? (float) $currentLat : ($trip['origin_lat'] ?? null);
+        $originLng = $hasCurrentLocation ? (float) $currentLng : ($trip['origin_lng'] ?? null);
+        $destLat = $trip['dest_lat'] ?? null;
+        $destLng = $trip['dest_lng'] ?? null;
+        if (!is_numeric($originLat) || !is_numeric($originLng) || !is_numeric($destLat) || !is_numeric($destLng)) return null;
+
+        $body = json_encode([
+            'origin' => ['location' => ['latLng' => ['latitude' => (float) $originLat, 'longitude' => (float) $originLng]]],
+            'destination' => ['location' => ['latLng' => ['latitude' => (float) $destLat, 'longitude' => (float) $destLng]]],
+            'travelMode' => 'DRIVE',
+            'routingPreference' => 'TRAFFIC_AWARE_OPTIMAL',
+            'departureTime' => gmdate('Y-m-d\\TH:i:s\\Z'),
+            'computeAlternativeRoutes' => false,
+            'languageCode' => 'en',
+            'units' => 'METRIC',
+        ]);
+        if ($body === false) return null;
+
+        $curl = curl_init('https://routes.googleapis.com/directions/v2:computeRoutes');
+        curl_setopt_array($curl, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $body,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'X-Goog-Api-Key: ' . trim($apiKey),
+                'X-Goog-FieldMask: routes.duration,routes.distanceMeters',
+            ],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 10,
+        ]);
+        $responseBody = curl_exec($curl);
+        $httpStatus = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+        if ($responseBody === false || $httpStatus < 200 || $httpStatus >= 300) {
+            Log::warning('Google traffic-aware ETA unavailable; using OpenRouteService fallback.', ['http_status' => $httpStatus]);
+            return null;
+        }
+
+        $response = json_decode($responseBody, true);
+        $route = is_array($response) ? ($response['routes'][0] ?? null) : null;
+        if (!is_array($route) || !is_numeric($route['distanceMeters'] ?? null)) return null;
+        $duration = $route['duration'] ?? null;
+        if (!is_string($duration) || !preg_match('/^(\\d+(?:\\.\\d+)?)s$/', $duration, $matches)) return null;
+        return ['distance_meters' => (float) $route['distanceMeters'], 'duration_seconds' => (float) $matches[1]];
     }
 
     private function calculateRouteColor(array $trip, float $speed): string
