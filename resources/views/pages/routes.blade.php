@@ -74,6 +74,10 @@
     .dispatch-item { width: 100%; color: var(--text); font: inherit; text-align: left; }
     .dispatch-item:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
     .dispatch-item[aria-disabled="true"] { cursor: default; opacity: 0.65; }
+    .vehicle-info-sidebar { min-width: 0; max-height: calc(100vh - 190px); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 3px; }
+    .vehicle-info-sidebar > .panel-card { min-width: 0; }
+    .vehicle-info-sidebar::-webkit-scrollbar { width: 8px; }
+    .vehicle-info-sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
     .dispatch-info { min-width: 0; }
     .dispatch-info h4, .dispatch-info p { overflow-wrap: anywhere; }
     .dispatch-trip-status { display: block; margin-top: 4px; color: var(--muted); font-size: 0.68rem; text-align: right; }
@@ -87,6 +91,7 @@
         .control-left h2 { font-size: 1.05rem; }
         .control-right .btn-primary, .control-right .btn-secondary { padding: 8px 12px; font-size: 0.8rem; }
         .map-container-grid { gap: 12px; }
+        .vehicle-info-sidebar { max-height: none; overflow: visible; padding-right: 0; }
         .panel-card { padding: 14px; }
         .gps-metrics-grid { grid-template-columns: 1fr; }
     }
@@ -220,7 +225,7 @@
                     <div class="eta-live-card">
                         <div class="eta-header">
                             <span>⏱️ ETA & Route Metrics</span>
-                            <span class="eta-live-tag">Updated live</span>
+                            <span class="eta-live-tag" id="eta-source-label">Route estimate</span>
                         </div>
                         <div class="eta-metrics-row">
                             <div>
@@ -551,6 +556,24 @@
                 vehicleMarkers[vehicle.id] = marker;
             }
         });
+    }
+
+    function deselectActiveDispatch() {
+        activeVehicleId = null;
+        selectedDispatchData = null;
+        followedVehicleId = null;
+        clearRouteDisplay();
+        renderFleetMarkers();
+        const emptyState = document.getElementById('empty-state');
+        const vehicleContent = document.getElementById('active-vehicle-content');
+        if (emptyState) emptyState.style.display = 'block';
+        if (vehicleContent) vehicleContent.style.display = 'none';
+        renderActiveDispatches();
+
+        const bounds = [];
+        fleetData.filter(hasValidCoordinates).forEach(vehicle => bounds.push([Number(vehicle.latitude), Number(vehicle.longitude)]));
+        if (bounds.length > 1) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 9, animate: true });
+        else map.setView([12.8797, 121.7740], 6, { animate: true });
     }
 
     function selectVehicle(vehicleId, selectedDispatch = null) {
@@ -924,18 +947,22 @@
             const vehicleId = Number(dispatch.vehicle_id);
             const vehicleIsLoaded = fleetData.some(vehicle => Number(vehicle.id) === vehicleId);
             const item = document.createElement('div');
-            item.className = `dispatch-item${activeVehicleId === vehicleId ? ' selected' : ''}`;
+            const isSelectedDispatch = activeVehicleId === vehicleId && selectedDispatchData?.dispatch_no === dispatch.dispatch_no;
+            item.className = `dispatch-item${isSelectedDispatch ? ' selected' : ''}`;
             item.setAttribute('role', 'button');
             item.setAttribute('tabindex', vehicleIsLoaded ? '0' : '-1');
             item.setAttribute('aria-disabled', vehicleIsLoaded ? 'false' : 'true');
-            item.setAttribute('aria-pressed', activeVehicleId === vehicleId ? 'true' : 'false');
+            item.setAttribute('aria-pressed', isSelectedDispatch ? 'true' : 'false');
             item.addEventListener('click', () => {
-                if (vehicleIsLoaded) selectVehicle(vehicleId, dispatch);
+                if (!vehicleIsLoaded) return;
+                if (isSelectedDispatch) deselectActiveDispatch();
+                else selectVehicle(vehicleId, dispatch);
             });
             item.addEventListener('keydown', event => {
                 if (vehicleIsLoaded && (event.key === 'Enter' || event.key === ' ')) {
                     event.preventDefault();
-                    selectVehicle(vehicleId, dispatch);
+                    if (isSelectedDispatch) deselectActiveDispatch();
+                    else selectVehicle(vehicleId, dispatch);
                 }
             });
 
