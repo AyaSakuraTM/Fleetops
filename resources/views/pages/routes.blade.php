@@ -48,20 +48,29 @@
     }
     .route-option-label { font-size: 0.8rem; font-weight: 800; }
     .route-option-summary { color: var(--muted); font-size: 0.74rem; line-height: 1.3; }
-    .route-destination-icon { background: transparent; border: 0; }
+    .route-destination-icon, .live-location-icon { background: transparent; border: 0; }
     .route-destination-pin {
         display: grid;
         width: 34px;
         height: 34px;
         place-items: center;
-        border: 3px solid #fff;
-        border-radius: 50% 50% 50% 4px;
-        background: #e76f51;
-        box-shadow: 0 3px 9px rgba(20, 33, 61, 0.35);
+        border: 2px solid rgba(255,255,255,.96);
+        border-radius: 12px;
+        background: #0f766e;
+        box-shadow: 0 5px 16px rgba(15,23,42,.28);
         color: #fff;
-        transform: rotate(-45deg);
+        transform: rotate(45deg);
     }
-    .route-destination-pin span { transform: rotate(45deg); font-size: 0.72rem; font-weight: 900; }
+    .route-destination-pin span { transform: rotate(-45deg); font-size: 0.72rem; font-weight: 900; }
+    .route-destination-pin.is-destination { background: #2563eb; }
+    .live-location-marker { display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; }
+    .live-location-button { position:relative; display:grid; place-items:center; width:30px; height:30px; border:3px solid #fff; border-radius:50%; background:#1677ff; color:#fff; box-shadow:0 3px 12px rgba(22,119,255,.45); }
+    .live-location-button::before { content:""; position:absolute; inset:-7px; border:2px solid rgba(22,119,255,.65); border-radius:50%; animation: liveLocationPulse 1.5s ease-out infinite; }
+    .live-location-button::after { content:""; width:7px; height:7px; border-radius:50%; background:#fff; }
+    .live-location-marker.is-following .live-location-button { background:#075bd8; box-shadow:0 0 0 5px rgba(22,119,255,.16),0 3px 14px rgba(22,119,255,.55); }
+    .live-location-label { max-width:120px; padding:3px 7px; border:1px solid rgba(148,163,184,.3); border-radius:7px; background:rgba(15,23,42,.92); color:#fff; font:600 11px/1.2 system-ui,sans-serif; white-space:nowrap; box-shadow:0 3px 9px rgba(15,23,42,.18); }
+    @keyframes liveLocationPulse { 0% { transform:scale(.65); opacity:.9; } 100% { transform:scale(1.6); opacity:0; } }
+    @media (prefers-reduced-motion: reduce) { .live-location-button::before { animation:none; } }
     .dispatch-item { width: 100%; color: var(--text); font: inherit; text-align: left; }
     .dispatch-item:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
     .dispatch-item[aria-disabled="true"] { cursor: default; opacity: 0.65; }
@@ -373,6 +382,8 @@
     let activeRouteColor = 'green';
     let routeRequestSequence = 0;
     let activeVehicleId = null;
+    let followedVehicleId = null;
+    let activeMarkerVehicleId = null;
     let selectedDispatchData = null;
     let fleetData = [];
     let activeDispatches = [];
@@ -437,25 +448,18 @@
         }).addTo(map);
     }
 
-    function createTruckIcon(vehicleCode, status, speed, color) {
-        const isDark = status === 'Maintenance';
-        const colorHex = color === 'red' ? '#e74c3c' : (color === 'yellow' ? '#f39c12' : '#17a2b8');
-        
+    function createTruckIcon(vehicleCode, status, speed) {
+        const safeCode = String(vehicleCode || 'Vehicle').replace(/[&<>"']/g, char => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[char]));
+        const isFollowing = followedVehicleId !== null && String(followedVehicleId) === String(activeMarkerVehicleId);
         const html = `
-            <div class="truck-marker-pin" style="--pin-color: ${colorHex}">
-                <div class="truck-icon-body">🚚</div>
-                <div class="truck-tag">${vehicleCode}</div>
-                <div class="truck-speed">${speed} km/h</div>
+            <div class="live-location-marker ${isFollowing ? 'is-following' : ''}" aria-label="Live location for ${safeCode}">
+                <div class="live-location-button" title="Click to zoom and follow live location"></div>
+                <div class="live-location-label">${safeCode} · ${Number(speed || 0).toFixed(0)} km/h</div>
             </div>
         `;
-
-        return L.divIcon({
-            html: html,
-            className: 'custom-leaflet-truck',
-            iconSize: [48, 48],
-            iconAnchor: [24, 24],
-            popupAnchor: [0, -20]
-        });
+        return L.divIcon({ html, className: 'live-location-icon', iconSize: [130, 52], iconAnchor: [65, 15] });
     }
 
     function loadFleetData() {
@@ -477,6 +481,18 @@
                     }
 
                     applyFleetFilters();
+                    if (followedVehicleId !== null) {
+                        const followedVehicle = fleetData.find(v => String(v.id) === String(followedVehicleId));
+                        if (followedVehicle && hasValidCoordinates(followedVehicle)) {
+                            const nextPosition = L.latLng(Number(followedVehicle.latitude), Number(followedVehicle.longitude));
+                            const currentCenter = map.getCenter();
+                            if (currentCenter.distanceTo(nextPosition) > 2) {
+                                map.setView(nextPosition, Math.max(map.getZoom(), 18), { animate: true, duration: 0.45 });
+                            }
+                        } else {
+                            followedVehicleId = null;
+                        }
+                    }
                     updateDashboardAnalytics();
                     loadNotifications();
 
@@ -512,15 +528,26 @@
 
         visibleVehicles.forEach(vehicle => {
             const latLng = [Number(vehicle.latitude), Number(vehicle.longitude)];
-            const icon = createTruckIcon(vehicle.vehicle_code, vehicle.status, vehicle.speed, vehicle.route_color);
+            activeMarkerVehicleId = vehicle.id;
+            const icon = createTruckIcon(vehicle.vehicle_code, vehicle.status, vehicle.speed);
 
             if (vehicleMarkers[vehicle.id]) {
                 vehicleMarkers[vehicle.id].setLatLng(latLng);
                 vehicleMarkers[vehicle.id].setIcon(icon);
+                vehicleMarkers[vehicle.id].off('click');
+                vehicleMarkers[vehicle.id].on('click', () => {
+                    followedVehicleId = vehicle.id;
+                    map.setView([Number(vehicle.latitude), Number(vehicle.longitude)], 18, { animate: true });
+                    selectVehicle(vehicle.id);
+                });
                 if (!map.hasLayer(vehicleMarkers[vehicle.id])) vehicleMarkers[vehicle.id].addTo(map);
             } else {
                 const marker = L.marker(latLng, { icon: icon }).addTo(map);
-                marker.on('click', () => selectVehicle(vehicle.id));
+                marker.on('click', () => {
+                    followedVehicleId = vehicle.id;
+                    map.setView([Number(vehicle.latitude), Number(vehicle.longitude)], 18, { animate: true });
+                    selectVehicle(vehicle.id);
+                });
                 vehicleMarkers[vehicle.id] = marker;
             }
         });
@@ -701,12 +728,13 @@
         if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
             Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
 
+        const isDestination = String(label).toUpperCase() === 'B';
         const icon = L.divIcon({
-            html: `<div class="route-destination-pin"><span>${label}</span></div>`,
+            html: `<div class="route-destination-pin ${isDestination ? 'is-destination' : ''}"><span>${label}</span></div>`,
             className: 'route-destination-icon',
             iconSize: [40, 46],
-            iconAnchor: [20, 42],
-            popupAnchor: [0, -40]
+            iconAnchor: [20, 23],
+            popupAnchor: [0, -24]
         });
 
         const marker = L.marker([latitude, longitude], {
@@ -1146,10 +1174,12 @@
     }
 
     function recenterMap() {
-        const v = activeVehicleId ? fleetData.find(item => item.id === activeVehicleId)
-            : fleetData.find(hasValidCoordinates);
+        const v = fleetData.find(item => String(item.id) === String(followedVehicleId))
+            || (activeVehicleId ? fleetData.find(item => Number(item.id) === Number(activeVehicleId)) : null)
+            || fleetData.find(hasValidCoordinates);
         if (v && hasValidCoordinates(v)) {
-            map.setView([Number(v.latitude), Number(v.longitude)], 12);
+            followedVehicleId = v.id;
+            map.setView([Number(v.latitude), Number(v.longitude)], 18, { animate: true });
         }
     }
 
