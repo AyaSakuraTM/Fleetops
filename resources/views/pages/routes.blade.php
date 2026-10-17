@@ -613,7 +613,7 @@
                 vehicleMarkers[vehicle.id].on('click', () => {
                     // Map-marker clicks only focus/follow the live position.
                     // They must never toggle a dispatch selection off.
-                    selectVehicle(vehicle.id, null, false);
+                    selectVehicle(vehicle.id, null, false, false);
                     followedVehicleId = vehicle.id;
                     focusMapOnLiveLocation([Number(vehicle.latitude), Number(vehicle.longitude)], 19);
                     renderFleetMarkers();
@@ -634,7 +634,7 @@
         });
     }
 
-    function selectVehicle(vehicleId, selectedDispatch = null, allowDeselect = false) {
+    function selectVehicle(vehicleId, selectedDispatch = null, allowDeselect = false, focusMap = true) {
         const v = fleetData.find(item => Number(item.id) === Number(vehicleId));
         if (!v) return;
 
@@ -669,7 +669,7 @@
         // Clear any previous follow target so selecting a dispatch does not
         // unexpectedly snap the map to a different vehicle during polling.
         followedVehicleId = null;
-        if (hasValidCoordinates(v)) {
+        if (focusMap && hasValidCoordinates(v)) {
             map.setView([Number(v.latitude), Number(v.longitude)], 12, { animate: true });
         }
     }
