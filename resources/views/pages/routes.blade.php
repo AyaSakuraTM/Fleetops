@@ -553,18 +553,12 @@
                     }
 
                     applyFleetFilters();
+                    // Polling updates marker coordinates only. Never move or zoom
+                    // the map during a refresh: the user may be inspecting another
+                    // street or route, and should keep full control of the viewport.
                     if (followedVehicleId !== null) {
                         const followedVehicle = fleetData.find(v => String(v.id) === String(followedVehicleId));
-                        if (followedVehicle && hasValidCoordinates(followedVehicle)) {
-                            const nextPosition = L.latLng(Number(followedVehicle.latitude), Number(followedVehicle.longitude));
-                            const currentCenter = map.getCenter();
-                            // Follow small walking-speed changes too; a 2 m dead zone
-                            // made the marker appear stationary when the user walked.
-                            if (currentCenter.distanceTo(nextPosition) > 0.5) {
-                                // Follow the marker without overriding the user's zoom level.
-                                map.panTo(nextPosition, { animate: true, duration: 0.35 });
-                            }
-                        } else {
+                        if (!followedVehicle || !hasValidCoordinates(followedVehicle)) {
                             followedVehicleId = null;
                         }
                     }
@@ -953,14 +947,10 @@
             }
         }
 
-        if (activeRoutePolyline) {
-            const bounds = activeRoutePolyline.getBounds();
-            const selectedVehicle = fleetData.find(vehicle => Number(vehicle.id) === activeVehicleId);
-            if (selectedVehicle && hasValidCoordinates(selectedVehicle)) {
-                bounds.extend([Number(selectedVehicle.latitude), Number(selectedVehicle.longitude)]);
-            }
-            map.fitBounds(bounds, { padding: [40, 40] });
-        }
+        // Route updates must not change the user's current map viewport.
+        // Use the explicit "focus route" control when the user wants fit-to-route.
+        // The route polyline and ETA still update normally.
+        
     }
 
     function drawRoutePolylines(routes, routeColor, liveEta = null) {
