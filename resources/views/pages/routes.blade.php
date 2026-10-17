@@ -65,6 +65,7 @@
     .route-destination-pin.is-destination { background: #2563eb; }
     .live-location-marker { display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; }
     .live-location-button { position:relative; display:grid; place-items:center; width:30px; height:30px; border:3px solid #fff; border-radius:50%; background:#1677ff; color:#fff; box-shadow:0 3px 12px rgba(22,119,255,.45); }
+    .live-location-direction { position:absolute; left:50%; top:-19px; z-index:2; color:#075bd8; font:900 20px/1 system-ui,sans-serif; text-shadow:-1px -1px #fff,1px -1px #fff,-1px 1px #fff,1px 1px #fff,0 2px 5px rgba(15,23,42,.35); transform-origin:50% 27px; pointer-events:none; }
     .live-location-button::before { content:""; position:absolute; inset:-7px; border:2px solid rgba(22,119,255,.65); border-radius:50%; animation: liveLocationPulse 1.5s ease-out infinite; }
     .live-location-button::after { content:""; width:7px; height:7px; border-radius:50%; background:#fff; }
     .live-location-marker.is-following .live-location-button { background:#075bd8; box-shadow:0 0 0 5px rgba(22,119,255,.16),0 3px 14px rgba(22,119,255,.55); }
@@ -453,6 +454,24 @@
         renderActiveDispatches();
     }
 
+    let browserDeviceHeading = null;
+
+    function captureDeviceHeading(event) {
+        // Prefer the true compass heading exposed by Safari/iOS when available.
+        const webkitHeading = event.webkitCompassHeading;
+        if (Number.isFinite(webkitHeading)) {
+            browserDeviceHeading = ((webkitHeading % 360) + 360) % 360;
+        } else if (event.absolute && Number.isFinite(event.alpha)) {
+            // Absolute device orientation: convert alpha to clockwise-from-north.
+            browserDeviceHeading = ((360 - event.alpha) % 360 + 360) % 360;
+        }
+    }
+
+    if (typeof window !== 'undefined') {
+        window.addEventListener('deviceorientationabsolute', captureDeviceHeading, true);
+        window.addEventListener('deviceorientation', captureDeviceHeading, true);
+    }
+
     function initLeafletMap() {
         map = L.map('fleet-map', {
             center: [12.8797, 121.7740],
@@ -466,18 +485,24 @@
         }).addTo(map);
     }
 
-    function createTruckIcon(vehicleCode, status, speed) {
+    function createTruckIcon(vehicleCode, status, speed, heading = null) {
         const safeCode = String(vehicleCode || 'Vehicle').replace(/[&<>"']/g, char => ({
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
         }[char]));
         const isFollowing = followedVehicleId !== null && String(followedVehicleId) === String(activeMarkerVehicleId);
+        const headingValue = Number(heading);
+        const hasHeading = heading !== null && heading !== undefined && heading !== '' &&
+            Number.isFinite(headingValue) && headingValue >= 0 && headingValue <= 360;
+        const direction = hasHeading
+            ? `<span class="live-location-direction" style="transform:translateX(-50%) rotate(${headingValue}deg)" title="Heading: ${Math.round(headingValue)}°"></span>`
+            : '';
         const html = `
-            <div class="live-location-marker ${isFollowing ? 'is-following' : ''}" aria-label="Live location for ${safeCode}">
-                <div class="live-location-button" title="Click to zoom and follow live location"></div>
-                <div class="live-location-label">${safeCode} · ${Number(speed || 0).toFixed(0)} km/h</div>
+            <div class="live-location-marker ${isFollowing ? 'is-following' : ''}" aria-label="Live location for ${safeCode}${hasHeading ? ', heading ' + Math.round(headingValue) + ' degrees' : ''}">
+                <div class="live-location-button" title="Click to zoom in and follow live location">${direction}</div>
+                <div class="live-location-label">${safeCode} · ${Number(speed || 0).toFixed(1)} km/h</div>
             </div>
         `;
-        return L.divIcon({ html, className: 'live-location-icon', iconSize: [130, 52], iconAnchor: [65, 15] });
+        return L.divIcon({ html, className: 'live-location-icon', iconSize: [130, 58], iconAnchor: [65, 15] });
     }
 
     function loadFleetData() {
@@ -504,8 +529,10 @@
                         if (followedVehicle && hasValidCoordinates(followedVehicle)) {
                             const nextPosition = L.latLng(Number(followedVehicle.latitude), Number(followedVehicle.longitude));
                             const currentCenter = map.getCenter();
-                            if (currentCenter.distanceTo(nextPosition) > 2) {
-                                map.setView(nextPosition, Math.max(map.getZoom(), 18), { animate: true, duration: 0.45 });
+                            // Follow small walking-speed changes too; a 2 m dead zone
+                            // made the marker appear stationary when the user walked.
+                            if (currentCenter.distanceTo(nextPosition) > 0.5) {
+                                map.setView(nextPosition, Math.max(map.getZoom(), 19), { animate: true, duration: 0.35 });
                             }
                         } else {
                             followedVehicleId = null;
@@ -547,31 +574,37 @@
         visibleVehicles.forEach(vehicle => {
             const latLng = [Number(vehicle.latitude), Number(vehicle.longitude)];
             activeMarkerVehicleId = vehicle.id;
-            const icon = createTruckIcon(vehicle.vehicle_code, vehicle.status, vehicle.speed);
+            const icon = createTruckIcon(vehicle.vehicle_code, vehicle.status, vehicle.speed, vehicle.heading);
 
             if (vehicleMarkers[vehicle.id]) {
                 vehicleMarkers[vehicle.id].setLatLng(latLng);
                 vehicleMarkers[vehicle.id].setIcon(icon);
                 vehicleMarkers[vehicle.id].off('click');
                 vehicleMarkers[vehicle.id].on('click', () => {
+                    // Map-marker clicks only focus/follow the live position.
+                    // They must never toggle a dispatch selection off.
+                    selectVehicle(vehicle.id, null, false);
                     followedVehicleId = vehicle.id;
-                    map.setView([Number(vehicle.latitude), Number(vehicle.longitude)], 18, { animate: true });
-                    selectVehicle(vehicle.id);
+                    map.setView([Number(vehicle.latitude), Number(vehicle.longitude)], 19, { animate: true });
+                    renderFleetMarkers();
                 });
                 if (!map.hasLayer(vehicleMarkers[vehicle.id])) vehicleMarkers[vehicle.id].addTo(map);
             } else {
                 const marker = L.marker(latLng, { icon: icon }).addTo(map);
                 marker.on('click', () => {
+                    // Map-marker clicks only focus/follow the live position.
+                    // They must never toggle a dispatch selection off.
+                    selectVehicle(vehicle.id, null, false);
                     followedVehicleId = vehicle.id;
-                    map.setView([Number(vehicle.latitude), Number(vehicle.longitude)], 18, { animate: true });
-                    selectVehicle(vehicle.id);
+                    map.setView([Number(vehicle.latitude), Number(vehicle.longitude)], 19, { animate: true });
+                    renderFleetMarkers();
                 });
                 vehicleMarkers[vehicle.id] = marker;
             }
         });
     }
 
-    function selectVehicle(vehicleId, selectedDispatch = null) {
+    function selectVehicle(vehicleId, selectedDispatch = null, allowDeselect = false) {
         const v = fleetData.find(item => Number(item.id) === Number(vehicleId));
         if (!v) return;
 
@@ -586,7 +619,7 @@
             String(dispatchSelection.dispatch_no) === String(selectedDispatchData.dispatch_no);
 
         // Clicking the currently selected dispatch toggles it off.
-        if (sameDispatchIsAlreadySelected) {
+        if (allowDeselect && sameDispatchIsAlreadySelected) {
             deselectDispatch();
             return;
         }
@@ -988,12 +1021,12 @@
             item.setAttribute('aria-disabled', vehicleIsLoaded ? 'false' : 'true');
             item.setAttribute('aria-pressed', isSelectedDispatch ? 'true' : 'false');
             item.addEventListener('click', () => {
-                if (vehicleIsLoaded) selectVehicle(vehicleId, dispatch);
+                if (vehicleIsLoaded) selectVehicle(vehicleId, dispatch, true);
             });
             item.addEventListener('keydown', event => {
                 if (vehicleIsLoaded && (event.key === 'Enter' || event.key === ' ')) {
                     event.preventDefault();
-                    selectVehicle(vehicleId, dispatch);
+                    selectVehicle(vehicleId, dispatch, true);
                 }
             });
 
@@ -1105,13 +1138,16 @@
             (pos) => {
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
-                const speed = Math.round(pos.coords.speed ? pos.coords.speed * 3.6 : 45.0);
+                const speed = Math.max(0, pos.coords.speed == null ? 0 : pos.coords.speed * 3.6);
+                const heading = Number.isFinite(browserDeviceHeading)
+                    ? browserDeviceHeading
+                    : (Number.isFinite(pos.coords.heading) ? pos.coords.heading : null);
 
                 document.getElementById('mobile-lat').innerText = lat.toFixed(4);
                 document.getElementById('mobile-lng').innerText = lng.toFixed(4);
                 document.getElementById('mobile-speed').innerText = speed + ' km/h';
 
-                sendLocationUpdate(lat, lng, speed);
+                sendLocationUpdate(lat, lng, speed, heading);
             },
             (err) => {
                 log.innerText += `\n[ERROR] Geolocation error: ${err.message}. Switching to simulated GPS transmission.`;
@@ -1167,7 +1203,7 @@
             });
     }
 
-    function sendLocationUpdate(lat, lng, speed) {
+    function sendLocationUpdate(lat, lng, speed, heading = null) {
         const vehicleId = parseInt(document.getElementById('mobile-vehicle-select').value);
         const log = document.getElementById('gps-log-output');
 
@@ -1179,6 +1215,7 @@
                 latitude: lat,
                 longitude: lng,
                 speed: speed,
+                heading: Number.isFinite(heading) ? heading : null,
                 fuel_level: 86.5
             })
         })
