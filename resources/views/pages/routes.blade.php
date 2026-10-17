@@ -624,7 +624,7 @@
                 marker.on('click', () => {
                     // Map-marker clicks only focus/follow the live position.
                     // They must never toggle a dispatch selection off.
-                    selectVehicle(vehicle.id, null, false);
+                    selectVehicle(vehicle.id, null, false, false);
                     followedVehicleId = vehicle.id;
                     focusMapOnLiveLocation([Number(vehicle.latitude), Number(vehicle.longitude)], 19);
                     renderFleetMarkers();
