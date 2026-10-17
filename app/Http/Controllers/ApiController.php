@@ -80,7 +80,7 @@ class ApiController
                 }
             }
             if ($loc === null) {
-                $loc = ['latitude' => null, 'longitude' => null, 'speed' => 0.0, 'timestamp' => null];
+                $loc = ['latitude' => null, 'longitude' => null, 'speed' => 0.0, 'heading' => null, 'timestamp' => null];
             }
 
             $driver = null;
@@ -103,6 +103,7 @@ class ApiController
                 'latitude' => $loc['latitude'] !== null ? (float)$loc['latitude'] : null,
                 'longitude' => $loc['longitude'] !== null ? (float)$loc['longitude'] : null,
                 'speed' => (float)($loc['speed'] ?? 0),
+                'heading' => isset($loc['heading']) && $loc['heading'] !== null ? (float)$loc['heading'] : null,
                 'last_update' => $loc['timestamp'],
                 'active_trip_id' => $trip ? $trip['id'] : null,
                 'origin' => $trip ? $trip['origin'] : 'Depot Central',
@@ -518,6 +519,10 @@ class ApiController
         $latitude = isset($data['latitude']) ? (float)$data['latitude'] : null;
         $longitude = isset($data['longitude']) ? (float)$data['longitude'] : null;
         $speed = isset($data['speed']) ? (float)$data['speed'] : 0.0;
+        $heading = isset($data['heading']) && is_numeric($data['heading']) ? (float)$data['heading'] : null;
+        if ($heading !== null) {
+            $heading = (($heading % 360) + 360) % 360;
+        }
         $fuelLevel = isset($data['fuel_level']) ? (float)$data['fuel_level'] : null;
         $vehicle = $vehicleId ? DB::table('vehicles')->where('id', $vehicleId)->first() : null;
 
@@ -569,6 +574,7 @@ class ApiController
             'latitude' => $latitude,
             'longitude' => $longitude,
             'speed' => $speed,
+            'heading' => $heading,
             'timestamp' => $now,
         ];
         if ($fuelLevel !== null) {
@@ -580,6 +586,7 @@ class ApiController
             'latitude' => $latitude,
             'longitude' => $longitude,
             'speed' => $speed,
+            'heading' => $heading,
             'fuel_level' => $fuelLevel,
             'timestamp' => $now,
             'created_at' => $now,
@@ -1352,6 +1359,7 @@ public function getMyActiveDispatches(): void
                 'latitude' => $l->latitude !== null ? (float)$l->latitude : null,
                 'longitude' => $l->longitude !== null ? (float)$l->longitude : null,
                 'speed' => (float)($l->speed ?? 0),
+                'heading' => isset($l->heading) && $l->heading !== null ? (float)$l->heading : null,
                 'fuel_level' => $l->fuel_level !== null ? (float)$l->fuel_level : null,
                 'timestamp' => (string)$l->timestamp,
             ];
