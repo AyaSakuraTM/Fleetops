@@ -66,6 +66,7 @@
     .live-location-marker { display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; }
     .live-location-button { position:relative; display:grid; place-items:center; width:30px; height:30px; border:3px solid #fff; border-radius:50%; background:#1677ff; color:#fff; box-shadow:0 3px 12px rgba(22,119,255,.45); }
     .live-location-direction { position:absolute; left:50%; top:-19px; z-index:2; color:#075bd8; font:900 20px/1 system-ui,sans-serif; text-shadow:-1px -1px #fff,1px -1px #fff,-1px 1px #fff,1px 1px #fff,0 2px 5px rgba(15,23,42,.35); transform-origin:50% 27px; pointer-events:none; }
+    .live-location-direction::before { content:"▲"; }
     .live-location-button::before { content:""; position:absolute; inset:-7px; border:2px solid rgba(22,119,255,.65); border-radius:50%; animation: liveLocationPulse 1.5s ease-out infinite; }
     .live-location-button::after { content:""; width:7px; height:7px; border-radius:50%; background:#fff; }
     .live-location-marker.is-following .live-location-button { background:#075bd8; box-shadow:0 0 0 5px rgba(22,119,255,.16),0 3px 14px rgba(22,119,255,.55); }
