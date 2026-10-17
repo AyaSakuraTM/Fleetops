@@ -76,6 +76,24 @@
     .dispatch-item[aria-disabled="true"] { cursor: default; opacity: 0.65; }
     .dispatch-info { min-width: 0; }
     .dispatch-info h4, .dispatch-info p { overflow-wrap: anywhere; }
+
+    /* Keep the entire right-hand information column independently scrollable. */
+    .vehicle-info-sidebar {
+        max-height: calc(100vh - 180px);
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding-right: 4px;
+        scrollbar-gutter: stable;
+    }
+    .vehicle-info-sidebar > .panel-card { flex: 0 0 auto; }
+    @media (max-width: 768px) {
+        .vehicle-info-sidebar {
+            max-height: none;
+            overflow: visible;
+            padding-right: 0;
+        }
+    }
     .dispatch-trip-status { display: block; margin-top: 4px; color: var(--muted); font-size: 0.68rem; text-align: right; }
     .map-header-tools { justify-content: flex-end; }
     @media (max-width: 420px) {
@@ -554,12 +572,25 @@
     }
 
     function selectVehicle(vehicleId, selectedDispatch = null) {
-        const v = fleetData.find(item => item.id === vehicleId);
+        const v = fleetData.find(item => Number(item.id) === Number(vehicleId));
         if (!v) return;
 
         const dispatchSelection = selectedDispatch
             || activeDispatches.find(dispatch => Number(dispatch.vehicle_id) === Number(vehicleId))
             || null;
+        const sameDispatchIsAlreadySelected =
+            activeVehicleId !== null &&
+            Number(activeVehicleId) === Number(vehicleId) &&
+            dispatchSelection &&
+            selectedDispatchData &&
+            String(dispatchSelection.dispatch_no) === String(selectedDispatchData.dispatch_no);
+
+        // Clicking the currently selected dispatch toggles it off.
+        if (sameDispatchIsAlreadySelected) {
+            deselectDispatch();
+            return;
+        }
+
         selectedDispatchData = dispatchSelection;
         const tripId = dispatchSelection
             ? (dispatchSelection.trip_record_id ? Number(dispatchSelection.trip_record_id) : null)
@@ -571,9 +602,32 @@
         displayVehicleDetails(v, true, tripId, dispatchSelection);
         if (tripId) loadTripRoute(tripId);
 
-        // Center map on marker when live coordinates exist
+        // Center map on marker when live coordinates exist.
+        // Clear any previous follow target so selecting a dispatch does not
+        // unexpectedly snap the map to a different vehicle during polling.
+        followedVehicleId = null;
         if (hasValidCoordinates(v)) {
             map.setView([Number(v.latitude), Number(v.longitude)], 12, { animate: true });
+        }
+    }
+
+    function deselectDispatch() {
+        activeVehicleId = null;
+        selectedDispatchData = null;
+        followedVehicleId = null;
+        clearRouteDisplay();
+
+        const emptyState = document.getElementById('empty-state');
+        const vehicleContent = document.getElementById('active-vehicle-content');
+        if (emptyState) emptyState.style.display = 'block';
+        if (vehicleContent) vehicleContent.style.display = 'none';
+
+        renderActiveDispatches();
+
+        // Return to the default Philippines-wide overview without removing
+        // live vehicle markers or stopping background GPS polling.
+        if (map) {
+            map.setView([12.8797, 121.7740], 6, { animate: true });
         }
     }
 
@@ -924,11 +978,15 @@
             const vehicleId = Number(dispatch.vehicle_id);
             const vehicleIsLoaded = fleetData.some(vehicle => Number(vehicle.id) === vehicleId);
             const item = document.createElement('div');
-            item.className = `dispatch-item${activeVehicleId === vehicleId ? ' selected' : ''}`;
+            const isSelectedDispatch = Boolean(
+                selectedDispatchData &&
+                String(selectedDispatchData.dispatch_no) === String(dispatch.dispatch_no)
+            );
+            item.className = `dispatch-item${isSelectedDispatch ? ' selected' : ''}`;
             item.setAttribute('role', 'button');
             item.setAttribute('tabindex', vehicleIsLoaded ? '0' : '-1');
             item.setAttribute('aria-disabled', vehicleIsLoaded ? 'false' : 'true');
-            item.setAttribute('aria-pressed', activeVehicleId === vehicleId ? 'true' : 'false');
+            item.setAttribute('aria-pressed', isSelectedDispatch ? 'true' : 'false');
             item.addEventListener('click', () => {
                 if (vehicleIsLoaded) selectVehicle(vehicleId, dispatch);
             });
