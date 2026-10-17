@@ -403,6 +403,7 @@
     let routeRequestSequence = 0;
     let activeVehicleId = null;
     let followedVehicleId = null;
+    let programmaticMapMove = false;
     let activeMarkerVehicleId = null;
     let selectedDispatchData = null;
     let fleetData = [];
@@ -484,6 +485,33 @@
             maxZoom: 19,
             attribution: '&copy; OpenStreetMap contributors | Logistics 2 Fleet Tracker'
         }).addTo(map);
+
+        // Manual map interaction takes priority over live-follow mode.
+        // This lets users zoom out or pan around without the next GPS poll
+        // pulling the map back in. Programmatic focus moves are exempt.
+        map.on('dragstart', () => {
+            followedVehicleId = null;
+            renderFleetMarkers();
+        });
+        map.on('zoomstart', () => {
+            if (!programmaticMapMove) {
+                followedVehicleId = null;
+                renderFleetMarkers();
+            }
+        });
+    }
+
+    function focusMapOnLiveLocation(position, zoom = 19) {
+        if (!map) return;
+        const target = L.latLng(position);
+        const sameView = map.getCenter().distanceTo(target) < 0.5 && map.getZoom() === zoom;
+        if (sameView) return;
+
+        programmaticMapMove = true;
+        map.once('moveend', () => {
+            programmaticMapMove = false;
+        });
+        map.setView(target, zoom, { animate: true, duration: 0.35 });
     }
 
     function createTruckIcon(vehicleCode, status, speed, heading = null) {
@@ -533,7 +561,8 @@
                             // Follow small walking-speed changes too; a 2 m dead zone
                             // made the marker appear stationary when the user walked.
                             if (currentCenter.distanceTo(nextPosition) > 0.5) {
-                                map.setView(nextPosition, Math.max(map.getZoom(), 19), { animate: true, duration: 0.35 });
+                                // Follow the marker without overriding the user's zoom level.
+                                map.panTo(nextPosition, { animate: true, duration: 0.35 });
                             }
                         } else {
                             followedVehicleId = null;
@@ -586,7 +615,7 @@
                     // They must never toggle a dispatch selection off.
                     selectVehicle(vehicle.id, null, false);
                     followedVehicleId = vehicle.id;
-                    map.setView([Number(vehicle.latitude), Number(vehicle.longitude)], 19, { animate: true });
+                    focusMapOnLiveLocation([Number(vehicle.latitude), Number(vehicle.longitude)], 19);
                     renderFleetMarkers();
                 });
                 if (!map.hasLayer(vehicleMarkers[vehicle.id])) vehicleMarkers[vehicle.id].addTo(map);
@@ -597,7 +626,7 @@
                     // They must never toggle a dispatch selection off.
                     selectVehicle(vehicle.id, null, false);
                     followedVehicleId = vehicle.id;
-                    map.setView([Number(vehicle.latitude), Number(vehicle.longitude)], 19, { animate: true });
+                    focusMapOnLiveLocation([Number(vehicle.latitude), Number(vehicle.longitude)], 19);
                     renderFleetMarkers();
                 });
                 vehicleMarkers[vehicle.id] = marker;
@@ -1275,7 +1304,7 @@
             || fleetData.find(hasValidCoordinates);
         if (v && hasValidCoordinates(v)) {
             followedVehicleId = v.id;
-            map.setView([Number(v.latitude), Number(v.longitude)], 18, { animate: true });
+            focusMapOnLiveLocation([Number(v.latitude), Number(v.longitude)], 18);
         }
     }
 
