@@ -1049,7 +1049,7 @@ public function getMyActiveDispatches(): void
         $destLng = (float) $trip['dest_lng'];
 
         $url = 'https://api.tomtom.com/routing/1/calculateRoute/'
-            . rawurlencode(sprintf('%.6F,%.6F:%.6F,%.6F', $startLat, $startLng, $destLat, $destLng))
+            . sprintf('%.6F,%.6F:%.6F,%.6F', $startLat, $startLng, $destLat, $destLng)
             . '/json?' . http_build_query([
                 'traffic' => 'true',
                 'travelMode' => 'car',
