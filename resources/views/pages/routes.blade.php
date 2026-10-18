@@ -657,7 +657,7 @@
         clearRouteDisplay();
         renderFleetMarkers();
         displayVehicleDetails(v, true, tripId, dispatchSelection);
-        if (tripId) loadTripRoute(tripId);
+        if (tripId) loadTripRoute(tripId, focusMap);
 
         // Center map on marker when live coordinates exist.
         // Clear any previous follow target so selecting a dispatch does not
@@ -743,7 +743,7 @@
         }
     }
 
-    function loadTripRoute(tripId) {
+    function loadTripRoute(tripId, focusMapAfterLoad = false) {
         const requestSequence = ++routeRequestSequence;
         fetch(apiBasePath + `/trip/${tripId}/route`)
             .then(res => res.json())
@@ -766,6 +766,11 @@
 
                     setTripEndpointMarkers(t.origin_coords, t.dest_coords);
                     drawRoutePolylines(routes.slice(0, 3), t.route_color, t.eta);
+                    // Only an explicit active-dispatch selection may zoom to its route.
+                    // Background refreshes and blue live-location marker clicks must not move the map.
+                    if (focusMapAfterLoad && activeVehicleId !== null) {
+                        focusSelectedVehicleRoute();
+                    }
                 }
             })
             .catch(err => {
