@@ -218,20 +218,43 @@ class ApiController
         ];
         $waypoints = [];
         $alternativeRoutes = [];
+        $dispatchRouteResponse = null;
         try {
-            $dispatchRouteResponse = $this->requestOpenRouteServiceRouteForTrip($trip, null);
-            $waypoints = $this->generateRouteWaypoints($trip, $originLocation, $dispatchRouteResponse);
-            $alternativeRoutes = $this->buildAlternativeRoutes(
-                $dispatchRouteResponse,
-                $trip,
-                $originLocation,
-                $waypoints
-            );
+            // Prefer TomTom's live-traffic routing for the selectable route options.
+            $dispatchRouteResponse = $this->requestTomTomRoutesForTrip($trip, null);
         } catch (\Throwable $exception) {
-            Log::warning('Unable to generate TripRecord A-to-B route.', [
+            Log::warning('TomTom route options failed; falling back to OpenRouteService.', [
                 'trip_record_id' => $trip['id'],
                 'exception' => $exception->getMessage(),
             ]);
+        }
+
+        if ($dispatchRouteResponse === null) {
+            try {
+                $dispatchRouteResponse = $this->requestOpenRouteServiceRouteForTrip($trip, null);
+            } catch (\Throwable $exception) {
+                Log::warning('Unable to generate TripRecord A-to-B route.', [
+                    'trip_record_id' => $trip['id'],
+                    'exception' => $exception->getMessage(),
+                ]);
+            }
+        }
+
+        if (is_array($dispatchRouteResponse)) {
+            try {
+                $waypoints = $this->generateRouteWaypoints($trip, $originLocation, $dispatchRouteResponse);
+                $alternativeRoutes = $this->buildAlternativeRoutes(
+                    $dispatchRouteResponse,
+                    $trip,
+                    $originLocation,
+                    $waypoints
+                );
+            } catch (\Throwable $exception) {
+                Log::warning('Unable to process TripRecord route geometry.', [
+                    'trip_record_id' => $trip['id'],
+                    'exception' => $exception->getMessage(),
+                ]);
+            }
         }
 
         $trafficDelays = [];
@@ -1112,6 +1135,118 @@ public function getMyActiveDispatches(): void
         ];
     }
 
+    /**
+     * Request TomTom route alternatives using current traffic information.
+     * Normalize the response to the same shape consumed by the existing route UI.
+     */
+    private function requestTomTomRoutesForTrip(array $trip, ?array $loc): array
+    {
+        $apiKey = getenv('TOMTOM_API_KEY');
+        if ($apiKey === false || trim($apiKey) === '') {
+            throw new \RuntimeException('TomTom API key is missing (TOMTOM_API_KEY).');
+        }
+        if (!function_exists('curl_init')) {
+            throw new \RuntimeException('TomTom routing requires the PHP cURL extension.');
+        }
+
+        $currentLat = $loc['latitude'] ?? null;
+        $currentLng = $loc['longitude'] ?? null;
+        $hasValidCurrentLocation = is_numeric($currentLat) && is_numeric($currentLng)
+            && (float) $currentLat >= -90 && (float) $currentLat <= 90
+            && (float) $currentLng >= -180 && (float) $currentLng <= 180;
+        $startLat = $hasValidCurrentLocation ? (float) $currentLat : (float) $trip['origin_lat'];
+        $startLng = $hasValidCurrentLocation ? (float) $currentLng : (float) $trip['origin_lng'];
+        $destLat = (float) $trip['dest_lat'];
+        $destLng = (float) $trip['dest_lng'];
+
+        $url = 'https://api.tomtom.com/routing/1/calculateRoute/'
+            . sprintf('%.6F,%.6F:%.6F,%.6F', $startLat, $startLng, $destLat, $destLng)
+            . '/json?' . http_build_query([
+                'traffic' => 'true',
+                'travelMode' => 'car',
+                'routeType' => 'fastest',
+                'maxAlternatives' => 2,
+                'key' => trim($apiKey),
+            ]);
+
+        $curl = curl_init($url);
+        if ($curl === false) {
+            throw new \RuntimeException('Unable to initialize the TomTom route-options request.');
+        }
+        curl_setopt_array($curl, [
+            CURLOPT_HTTPHEADER => ['Accept: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_TIMEOUT => 20,
+        ]);
+
+        $responseBody = curl_exec($curl);
+        $curlError = curl_error($curl);
+        $httpStatus = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+
+        if (!is_string($responseBody)) {
+            throw new \RuntimeException('TomTom route-options request failed: ' . $curlError);
+        }
+        $response = json_decode($responseBody, true);
+        if ($httpStatus < 200 || $httpStatus >= 300) {
+            $message = is_array($response)
+                ? ($response['error']['description'] ?? $response['error']['message'] ?? $response['message'] ?? 'No details provided.')
+                : 'No details provided.';
+            throw new \RuntimeException("TomTom route options returned HTTP {$httpStatus}: {$message}");
+        }
+
+        $tomTomRoutes = $response['routes'] ?? null;
+        if (!is_array($tomTomRoutes) || $tomTomRoutes === []) {
+            throw new \RuntimeException('TomTom returned no route options.');
+        }
+
+        $normalizedRoutes = [];
+        foreach (array_slice($tomTomRoutes, 0, 3) as $route) {
+            $summary = $route['summary'] ?? null;
+            $legs = $route['legs'] ?? null;
+            $points = is_array($legs) && isset($legs[0]['points']) ? $legs[0]['points'] : null;
+            if (!is_array($summary)
+                || !is_numeric($summary['lengthInMeters'] ?? null)
+                || !is_numeric($summary['travelTimeInSeconds'] ?? null)
+                || !is_array($points)
+                || $points === []) {
+                continue;
+            }
+
+            $geometry = [];
+            foreach ($points as $point) {
+                if (is_array($point)
+                    && is_numeric($point['longitude'] ?? null)
+                    && is_numeric($point['latitude'] ?? null)) {
+                    $geometry[] = [(float) $point['longitude'], (float) $point['latitude']];
+                }
+            }
+            if ($geometry === []) {
+                continue;
+            }
+
+            $normalizedRoutes[] = [
+                'summary' => [
+                    'distance' => (float) $summary['lengthInMeters'],
+                    'duration' => (float) $summary['travelTimeInSeconds'],
+                    'source' => 'tomtom',
+                    'traffic_aware' => true,
+                    'traffic_delay_seconds' => is_numeric($summary['trafficDelayInSeconds'] ?? null)
+                        ? max(0, (int) $summary['trafficDelayInSeconds'])
+                        : null,
+                ],
+                'geometry' => $geometry,
+            ];
+        }
+
+        if ($normalizedRoutes === []) {
+            throw new \RuntimeException('TomTom returned no usable route geometry or travel times.');
+        }
+
+        return ['routes' => $normalizedRoutes, 'source' => 'tomtom', 'traffic_aware' => true];
+    }
+
     private function calculateRouteColor(array $trip, float $speed): string
     {
         if ($trip['status'] === 'Critical Delay' || $speed < 10.0) {
@@ -1378,6 +1513,11 @@ public function getMyActiveDispatches(): void
                 'distance_km' => round((float)$summary['distance'] / 1000, 1),
                 'travel_time_mins' => $timeMins,
                 'formatted_travel_time' => $this->formatRouteTravelTime($timeMins),
+                'source' => $summary['source'] ?? ($response['source'] ?? 'openrouteservice'),
+                'traffic_aware' => $summary['traffic_aware'] ?? ($response['traffic_aware'] ?? false),
+                'traffic_delay_mins' => isset($summary['traffic_delay_seconds']) && is_numeric($summary['traffic_delay_seconds'])
+                    ? (int) round(((float) $summary['traffic_delay_seconds']) / 60)
+                    : null,
             ];
         }
 
