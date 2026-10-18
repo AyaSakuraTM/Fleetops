@@ -987,33 +987,128 @@ public function getMyActiveDispatches(): void
     // Helper utilities
     private function computeEtaDetails(array $trip, ?array $loc, ?array $routeResponse = null): array
     {
+        // Prefer TomTom's traffic-aware travel time for ETA. OpenRouteService remains
+        // the fallback and continues to provide the existing route geometry.
+        try {
+            $tomTomEta = $this->requestTomTomEtaForTrip($trip, $loc);
+            if ($tomTomEta !== null) {
+                return $tomTomEta;
+            }
+        } catch (\\Throwable $exception) {
+            Log::warning('TomTom traffic-aware ETA request failed; using OpenRouteService fallback.', [
+                'trip_record_id' => $trip['id'] ?? null,
+                'exception' => $exception->getMessage(),
+            ]);
+        }
+
         $routeResponse = $routeResponse ?? $this->requestOpenRouteServiceRouteForTrip($trip, $loc);
         $summary = $this->getOpenRouteServiceSummary($routeResponse);
         if (!is_array($summary) || !is_numeric($summary['distance'] ?? null) || !is_numeric($summary['duration'] ?? null)) {
-            throw new \RuntimeException('OpenRouteService response contains no valid route distance and duration.');
+            throw new \\RuntimeException('OpenRouteService response contains no valid route distance and duration.');
         }
 
-        $remainingDistKm = round((float)$summary['distance'] / 1000, 1);
-        $timeMins = (int)round((float)$summary['duration'] / 60);
-
+        $remainingDistKm = round((float) $summary['distance'] / 1000, 1);
+        $timeMins = max(0, (int) round((float) $summary['duration'] / 60));
         $expectedArrivalTs = time() + ($timeMins * 60);
-
-        $formattedTime = '';
-        if ($timeMins >= 60) {
-            $h = floor($timeMins / 60);
-            $m = $timeMins % 60;
-            $formattedTime = "{$h} hr " . ($m > 0 ? "{$m} mins" : "");
-        } else {
-            $formattedTime = "{$timeMins} mins";
-        }
 
         return [
             'remaining_distance_km' => $remainingDistKm,
             'remaining_travel_time_mins' => $timeMins,
-            'remaining_time_formatted' => $formattedTime,
+            'remaining_time_formatted' => $this->formatRouteTravelTime($timeMins),
             'expected_arrival_time' => date('h:i A', $expectedArrivalTs),
             'expected_arrival_timestamp' => date('Y-m-d H:i:s', $expectedArrivalTs),
-            'eta_accuracy_pct' => 97.2,
+            'source' => 'openrouteservice_fallback',
+            'traffic_aware' => false,
+            'traffic_delay_mins' => null,
+        ];
+    }
+
+    /**
+     * Request a current traffic-aware ETA from TomTom. Returns null when no
+     * TomTom key is configured so existing deployments continue to work.
+     */
+    private function requestTomTomEtaForTrip(array $trip, ?array $loc): ?array
+    {
+        $apiKey = getenv('TOMTOM_API_KEY');
+        if ($apiKey === false || trim($apiKey) === '') {
+            return null;
+        }
+        if (!function_exists('curl_init')) {
+            throw new \\RuntimeException('TomTom routing requires the PHP cURL extension.');
+        }
+
+        $currentLat = $loc['latitude'] ?? null;
+        $currentLng = $loc['longitude'] ?? null;
+        $hasValidCurrentLocation = is_numeric($currentLat) && is_numeric($currentLng)
+            && (float) $currentLat >= -90 && (float) $currentLat <= 90
+            && (float) $currentLng >= -180 && (float) $currentLng <= 180;
+
+        $startLat = $hasValidCurrentLocation ? (float) $currentLat : (float) $trip['origin_lat'];
+        $startLng = $hasValidCurrentLocation ? (float) $currentLng : (float) $trip['origin_lng'];
+        $destLat = (float) $trip['dest_lat'];
+        $destLng = (float) $trip['dest_lng'];
+
+        $url = 'https://api.tomtom.com/routing/1/calculateRoute/'
+            . sprintf('%.6F,%.6F:%.6F,%.6F', $startLat, $startLng, $destLat, $destLng)
+            . '/json?' . http_build_query([
+                'traffic' => 'true',
+                'travelMode' => 'car',
+                'routeType' => 'fastest',
+                'key' => trim($apiKey),
+            ]);
+
+        $curl = curl_init($url);
+        if ($curl === false) {
+            throw new \\RuntimeException('Unable to initialize the TomTom routing request.');
+        }
+        curl_setopt_array($curl, [
+            CURLOPT_HTTPHEADER => ['Accept: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_TIMEOUT => 15,
+        ]);
+
+        $responseBody = curl_exec($curl);
+        $curlError = curl_error($curl);
+        $httpStatus = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+
+        if (!is_string($responseBody)) {
+            throw new \\RuntimeException('TomTom routing HTTP request failed: ' . $curlError);
+        }
+
+        $response = json_decode($responseBody, true);
+        if ($httpStatus < 200 || $httpStatus >= 300) {
+            // Do not include the request URL: it contains the private API key.
+            $message = is_array($response)
+                ? ($response['error']['description'] ?? $response['error']['message'] ?? $response['message'] ?? 'No details provided.')
+                : 'No details provided.';
+            throw new \\RuntimeException("TomTom returned HTTP {$httpStatus}: {$message}");
+        }
+
+        $summary = $response['routes'][0]['summary'] ?? null;
+        if (!is_array($summary)
+            || !is_numeric($summary['travelTimeInSeconds'] ?? null)
+            || !is_numeric($summary['lengthInMeters'] ?? null)) {
+            throw new \\RuntimeException('TomTom returned no valid route travel time or distance.');
+        }
+
+        $timeSeconds = max(0, (int) round((float) $summary['travelTimeInSeconds']));
+        $timeMins = (int) round($timeSeconds / 60);
+        $expectedArrivalTs = time() + $timeSeconds;
+        $trafficDelaySeconds = is_numeric($summary['trafficDelayInSeconds'] ?? null)
+            ? max(0, (int) $summary['trafficDelayInSeconds'])
+            : null;
+
+        return [
+            'remaining_distance_km' => round((float) $summary['lengthInMeters'] / 1000, 1),
+            'remaining_travel_time_mins' => $timeMins,
+            'remaining_time_formatted' => $this->formatRouteTravelTime($timeMins),
+            'expected_arrival_time' => date('h:i A', $expectedArrivalTs),
+            'expected_arrival_timestamp' => date('Y-m-d H:i:s', $expectedArrivalTs),
+            'source' => 'tomtom',
+            'traffic_aware' => true,
+            'traffic_delay_mins' => $trafficDelaySeconds !== null ? (int) round($trafficDelaySeconds / 60) : null,
         ];
     }
 
