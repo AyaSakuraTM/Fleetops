@@ -994,7 +994,7 @@ public function getMyActiveDispatches(): void
             if ($tomTomEta !== null) {
                 return $tomTomEta;
             }
-        } catch (\\Throwable $exception) {
+        } catch (\Throwable $exception) {
             Log::warning('TomTom traffic-aware ETA request failed; using OpenRouteService fallback.', [
                 'trip_record_id' => $trip['id'] ?? null,
                 'exception' => $exception->getMessage(),
@@ -1004,7 +1004,7 @@ public function getMyActiveDispatches(): void
         $routeResponse = $routeResponse ?? $this->requestOpenRouteServiceRouteForTrip($trip, $loc);
         $summary = $this->getOpenRouteServiceSummary($routeResponse);
         if (!is_array($summary) || !is_numeric($summary['distance'] ?? null) || !is_numeric($summary['duration'] ?? null)) {
-            throw new \\RuntimeException('OpenRouteService response contains no valid route distance and duration.');
+            throw new \RuntimeException('OpenRouteService response contains no valid route distance and duration.');
         }
 
         $remainingDistKm = round((float) $summary['distance'] / 1000, 1);
@@ -1034,7 +1034,7 @@ public function getMyActiveDispatches(): void
             return null;
         }
         if (!function_exists('curl_init')) {
-            throw new \\RuntimeException('TomTom routing requires the PHP cURL extension.');
+            throw new \RuntimeException('TomTom routing requires the PHP cURL extension.');
         }
 
         $currentLat = $loc['latitude'] ?? null;
@@ -1059,7 +1059,7 @@ public function getMyActiveDispatches(): void
 
         $curl = curl_init($url);
         if ($curl === false) {
-            throw new \\RuntimeException('Unable to initialize the TomTom routing request.');
+            throw new \RuntimeException('Unable to initialize the TomTom routing request.');
         }
         curl_setopt_array($curl, [
             CURLOPT_HTTPHEADER => ['Accept: application/json'],
@@ -1074,7 +1074,7 @@ public function getMyActiveDispatches(): void
         curl_close($curl);
 
         if (!is_string($responseBody)) {
-            throw new \\RuntimeException('TomTom routing HTTP request failed: ' . $curlError);
+            throw new \RuntimeException('TomTom routing HTTP request failed: ' . $curlError);
         }
 
         $response = json_decode($responseBody, true);
@@ -1083,14 +1083,14 @@ public function getMyActiveDispatches(): void
             $message = is_array($response)
                 ? ($response['error']['description'] ?? $response['error']['message'] ?? $response['message'] ?? 'No details provided.')
                 : 'No details provided.';
-            throw new \\RuntimeException("TomTom returned HTTP {$httpStatus}: {$message}");
+            throw new \RuntimeException("TomTom returned HTTP {$httpStatus}: {$message}");
         }
 
         $summary = $response['routes'][0]['summary'] ?? null;
         if (!is_array($summary)
             || !is_numeric($summary['travelTimeInSeconds'] ?? null)
             || !is_numeric($summary['lengthInMeters'] ?? null)) {
-            throw new \\RuntimeException('TomTom returned no valid route travel time or distance.');
+            throw new \RuntimeException('TomTom returned no valid route travel time or distance.');
         }
 
         $timeSeconds = max(0, (int) round((float) $summary['travelTimeInSeconds']));
