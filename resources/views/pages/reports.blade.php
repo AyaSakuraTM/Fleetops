@@ -41,7 +41,7 @@ $reportData = [
             <p class="reports-intro">Review current fleet operations, driver performance, and transport costs.</p>
         </div>
         <div class="reports-actions">
-            <button class="btn-secondary" type="button" onclick="window.print()">Print reports</button>
+            <button class="btn-secondary" type="button" onclick="requestReportPrint()">Print reports</button>
             <button class="pill-button" type="button" onclick="downloadAllReports()">Download CSV</button>
         </div>
     </div>
@@ -131,7 +131,33 @@ $reportData = [
     </div>
 </section>
 
+<?php if (empty($dashboard['isAdmin'])): ?>
+<div class="print-password-backdrop" id="print-password-modal" hidden>
+    <form class="print-password-card" id="print-password-form">
+        <button class="print-password-close" type="button" onclick="closePrintPassword()" aria-label="Close">&times;</button>
+        <span class="print-password-icon" aria-hidden="true">&#128273;</span>
+        <h3>Confirm your password</h3>
+        <p>Enter your account password to print this report.</p>
+        <label for="print-password-input">Account password</label>
+        <input id="print-password-input" name="password" type="password" autocomplete="current-password" required>
+        <div class="print-password-error" id="print-password-error" role="alert" aria-live="polite"></div>
+        <button class="pill-button" id="print-password-submit" type="submit">Verify &amp; print</button>
+    </form>
+</div>
+<?php endif; ?>
+
 <style>
+    .print-password-backdrop[hidden] { display: none; }
+    .print-password-backdrop { position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 20px; background: rgba(15,27,56,.58); }
+    .print-password-card { position: relative; width: min(100%, 390px); padding: 28px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: 0 24px 70px rgba(10,20,40,.28); }
+    .print-password-close { position: absolute; top: 12px; right: 14px; border: 0; background: transparent; color: var(--muted); font-size: 24px; cursor: pointer; }
+    .print-password-icon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 14px; border-radius: 14px; background: var(--accent-light); font-size: 20px; }
+    .print-password-card h3 { margin: 0 0 7px; color: var(--text); }
+    .print-password-card p { margin: 0 0 20px; color: var(--muted); font-size: .88rem; }
+    .print-password-card label { display: block; margin-bottom: 7px; color: var(--text); font-size: .82rem; font-weight: 700; }
+    .print-password-card input { box-sizing: border-box; width: 100%; padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px; outline-color: var(--accent); background: var(--bg); color: var(--text); font: inherit; }
+    .print-password-error { min-height: 20px; margin: 7px 0 12px; color: #dc3545; font-size: .8rem; }
+    .print-password-card .pill-button { width: 100%; justify-content: center; }
     .reports-intro { margin: 6px 0 0; color: var(--muted); font-size: .9rem; }
     .reports-actions { display: flex; align-items: center; gap: 10px; }
     .reports-notice { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; padding: 13px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--muted); font-size: .83rem; line-height: 1.45; }
@@ -187,7 +213,7 @@ $reportData = [
         .cost-month strong { font-size: .65rem; }
     }
     @media print {
-        .sidebar, .topbar, .reports-actions, .report-card-actions { display: none !important; }
+        .sidebar, .topbar, .reports-actions, .report-card-actions, .print-password-backdrop { display: none !important; }
         .main-panel { width: 100% !important; padding: 0 !important; }
         .panel { box-shadow: none !important; }
         .reports-grid { display: block; }
@@ -195,6 +221,60 @@ $reportData = [
         .reports-notice { background: #fff !important; }
     }
 </style>
+
+<script>
+    const reportPrintIsAdmin = <?= !empty($dashboard['isAdmin']) ? 'true' : 'false' ?>;
+    function requestReportPrint() {
+        if (reportPrintIsAdmin) {
+            window.print();
+            return;
+        }
+
+        const modal = document.getElementById('print-password-modal');
+        modal.hidden = false;
+        document.getElementById('print-password-input').focus();
+    }
+
+    function closePrintPassword() {
+        const modal = document.getElementById('print-password-modal');
+        modal.hidden = true;
+        document.getElementById('print-password-form').reset();
+        document.getElementById('print-password-error').textContent = '';
+    }
+
+    document.getElementById('print-password-form')?.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        const submit = document.getElementById('print-password-submit');
+        const error = document.getElementById('print-password-error');
+        submit.disabled = true;
+        submit.textContent = 'Verifying…';
+        error.textContent = '';
+
+        try {
+            const response = await fetch(<?= json_encode(route('reports.verify-print-password')) ?>, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': <?= json_encode(csrf_token()) ?>,
+                },
+                body: JSON.stringify({ password: document.getElementById('print-password-input').value }),
+            });
+            const result = await response.json();
+            if (!response.ok || !result.verified) {
+                throw new Error(result.message || 'Password verification failed. Please try again.');
+            }
+
+            closePrintPassword();
+            window.print();
+        } catch (exception) {
+            error.textContent = exception.message || 'Unable to verify your password. Please try again.';
+        } finally {
+            submit.disabled = false;
+            submit.textContent = 'Verify & print';
+        }
+    });
+</script>
 
 <script>
 const reportData = <?= json_encode($reportData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
