@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Reservation;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 
 class ReservationController extends Controller
@@ -49,7 +50,8 @@ class ReservationController extends Controller
             $validated['employee_id'] = (string) $request->user()->id;
         }
 
-        Reservation::create($validated);
+        $reservation = Reservation::create($validated);
+        AuditLog::record($request, 'Reservation submitted', 'Reservations', "Submitted reservation {$reservation->reservation_no} to {$reservation->destination}.");
 
         return back()->with('success', 'Reservation submitted and sent for approval.');
     }
@@ -77,6 +79,7 @@ class ReservationController extends Controller
             'approved_by' => $request->user()?->id,
             'approved_at' => now(),
         ]);
+        AuditLog::record($request, 'Reservation approved', 'Reservations', "Approved reservation {$reservation->reservation_no}.");
 
         return back()->with('success', 'Reservation approved successfully.');
     }
@@ -100,6 +103,7 @@ class ReservationController extends Controller
         }
 
         $reservation->update(['status' => 'Rejected']);
+        AuditLog::record($request, 'Reservation rejected', 'Reservations', "Rejected reservation {$reservation->reservation_no}.");
 
         return back()->with('success', 'Reservation rejected.');
     }

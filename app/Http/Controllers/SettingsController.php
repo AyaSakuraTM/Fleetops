@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Alert;
+use App\Models\AuditLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -30,6 +31,8 @@ class SettingsController extends Controller
 
         Alert::log('⚙️', 'Profile Updated', "{$user->name} updated their profile.");
 
+        AuditLog::record($request, 'Profile updated', 'Settings', 'Updated profile name and email address.');
+
         return back()->with('status', 'Profile updated successfully.');
     }
 
@@ -50,6 +53,8 @@ class SettingsController extends Controller
         $user->save();
 
         Alert::log('🔒', 'Password Changed', "{$user->name} changed their password.");
+
+        AuditLog::record($request, 'Password changed', 'Settings', 'Changed account password.');
 
         return back()->with('status', 'Password changed successfully.');
     }

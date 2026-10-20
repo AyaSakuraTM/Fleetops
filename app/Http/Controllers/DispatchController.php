@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Dispatch;
+use App\Models\AuditLog;
 use App\Models\Reservation;
 use App\Models\TripRecord;
 use App\Support\OpenRouteServiceGeocoder;
@@ -102,6 +103,7 @@ class DispatchController extends Controller
             ]);
             DB::table('vehicles')->where('id', $dispatch->vehicle_id)->update(['status' => 'In Transit', 'updated_at' => now()]);
         });
+        AuditLog::record($request, 'Dispatch created', 'Dispatches', "Created dispatch from {$validated['origin']} to {$validated['destination']}.");
 
         return back()->with('success', 'Direct Dispatch created successfully.');
     }
@@ -158,6 +160,7 @@ class DispatchController extends Controller
             DB::table('vehicles')->where('id', $validated['vehicle_id'])->update(['status' => 'Reserved', 'updated_at' => now()]);
             $reservation->update(['status' => 'Dispatched']);
         });
+        AuditLog::record($request, 'Reservation dispatched', 'Dispatches', "Converted reservation {$reservation->reservation_no} into a dispatch.");
 
         return back()->with('success', 'Reservation converted to Dispatch successfully.');
     }
@@ -231,6 +234,7 @@ class DispatchController extends Controller
                 }
             }
         });
+        AuditLog::record($request, 'Dispatch status changed', 'Dispatches', "Changed dispatch {$dispatch->dispatch_no} status from {$currentStatus} to {$newStatus}.");
 
         return back()->with('success', 'Dispatch status updated to ' . $newStatus . ' successfully.');
     }

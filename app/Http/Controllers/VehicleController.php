@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Vehicle;
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -30,7 +31,8 @@ class VehicleController extends Controller
         $data['vehicle_code'] = 'VHC-' . str_pad($nextVehicleNumber + 1, 3, '0', STR_PAD_LEFT);
         $data['plate_number'] = strtoupper($data['plate_number']);
         if ($data['status'] === 'Available') $data['status'] = 'Active';
-        Vehicle::create($data);
+        $vehicle = Vehicle::create($data);
+        AuditLog::record($request, 'Vehicle added', 'Fleet', "Added {$vehicle->vehicle_code} ({$vehicle->plate_number}) to the fleet.");
 
         return redirect()->route('vehicles')->with('success', 'Vehicle saved to the fleet database.');
     }
@@ -49,7 +51,9 @@ class VehicleController extends Controller
         $data['vehicle_code'] = strtoupper($data['vehicle_code']);
         $data['plate_number'] = strtoupper($data['plate_number']);
         if ($data['status'] === 'Available') $data['status'] = 'Active';
+        $beforeStatus = $vehicle->status;
         $vehicle->update($data);
+        AuditLog::record($request, 'Vehicle updated', 'Fleet', "Updated {$vehicle->vehicle_code} ({$vehicle->plate_number}); status changed from {$beforeStatus} to {$vehicle->status}.");
 
         return redirect()->route('vehicles')->with('success', 'Vehicle changes saved to the fleet database.');
     }
