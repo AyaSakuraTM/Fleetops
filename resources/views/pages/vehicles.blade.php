@@ -1,3 +1,16 @@
+<?php
+$maintenanceIssuesByVehicle = [];
+foreach (($dashboard['vehicles'] ?? []) as $fleetVehicle) {
+    $maintenanceIssuesByVehicle[$fleetVehicle->id] = $fleetVehicle->maintenanceIssues->map(fn ($issue) => [
+        'id' => $issue->id,
+        'details' => $issue->details,
+        'status' => $issue->status,
+        'photo' => $issue->photo_path ? route('maintenance-issues.photo', $issue->id) : null,
+        'reported_by' => $issue->reporter?->name ?? 'Former account',
+        'created_at' => $issue->created_at?->format('M d, Y h:i A'),
+    ])->values()->all();
+}
+?>
 <div class="fleet-command-wrapper">
     <?php if (session('success')): ?><div style="padding:12px 16px;border:1px solid #86efac;border-radius:10px;background:#f0fdf4;color:#166534;">✓ <?= htmlspecialchars(session('success'), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
     <?php if ($errors->any()): ?><div style="padding:12px 16px;border:1px solid #fca5a5;border-radius:10px;background:#fef2f2;color:#991b1b;"><?= htmlspecialchars($errors->first(), ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
@@ -51,6 +64,7 @@
                             <td><span class="status-pill-badge"><?= htmlspecialchars($vehicle->status, ENT_QUOTES, 'UTF-8') ?></span></td>
                             <td class="text-right">
                                 <button type="button" class="action-btn view-link" onclick="viewVehicleDetails(this)" data-code="<?= htmlspecialchars($vehicle->vehicle_code, ENT_QUOTES, 'UTF-8') ?>" data-plate="<?= htmlspecialchars($vehicle->plate_number, ENT_QUOTES, 'UTF-8') ?>" data-type="<?= htmlspecialchars($vehicle->type ?? '', ENT_QUOTES, 'UTF-8') ?>" data-name="<?= htmlspecialchars($vehicle->name ?? '', ENT_QUOTES, 'UTF-8') ?>" data-odometer="<?= (int) ($vehicle->odometer ?? 0) ?>" data-status="<?= htmlspecialchars($vehicle->status, ENT_QUOTES, 'UTF-8') ?>">View</button>
+                                <button type="button" class="action-btn" onclick="openMaintenanceModal(<?= (int) $vehicle->id ?>, <?= htmlspecialchars(json_encode($vehicle->vehicle_code.' · '.$vehicle->plate_number), ENT_QUOTES, 'UTF-8') ?>)">Maintenance<?= $vehicle->maintenanceIssues->where('status', '!=', 'Resolved')->count() ? ' ('.$vehicle->maintenanceIssues->where('status', '!=', 'Resolved')->count().')' : '' ?></button>
                                 <?php if ($dashboard['isAdmin']): ?><button type="button" class="action-btn edit-link" onclick="editVehicle(this)" data-id="<?= (int) $vehicle->id ?>" data-code="<?= htmlspecialchars($vehicle->vehicle_code, ENT_QUOTES, 'UTF-8') ?>" data-plate="<?= htmlspecialchars($vehicle->plate_number, ENT_QUOTES, 'UTF-8') ?>" data-type="<?= htmlspecialchars($vehicle->type ?? '', ENT_QUOTES, 'UTF-8') ?>" data-name="<?= htmlspecialchars($vehicle->name ?? '', ENT_QUOTES, 'UTF-8') ?>" data-odometer="<?= (int) ($vehicle->odometer ?? 0) ?>" data-status="<?= htmlspecialchars($vehicle->status, ENT_QUOTES, 'UTF-8') ?>">Edit</button><?php endif; ?>
                             </td>
                         </tr>
@@ -97,10 +111,7 @@
                     <label>Brand & Model (Year)</label>
                     <input type="text" id="add-brand" name="name" class="form-control" placeholder="e.g. Isuzu Elf (2023)" required maxlength="150" />
                 </div>
-                <div class="form-group">
-                    <label>Odometer Reading (km)</label>
-                    <input type="number" id="add-odometer" name="odometer" class="form-control" placeholder="e.g. 15200" min="0" />
-                </div>
+                <div class="form-group"><label>Odometer</label><div class="form-control" style="color:var(--muted);">Calculated from completed tracked trips (km)</div></div>
                 <div class="form-group full-width">
                     <label>Initial Status</label>
                     <select id="add-status" name="status" class="form-control" required>
@@ -121,6 +132,28 @@
     </div>
 </div>
 <?php endif; ?>
+
+<div id="maintenance-modal" class="modal-backdrop" style="display:none;">
+    <div class="modal-card maintenance-modal-card">
+        <div class="modal-header">
+            <div><p class="eyebrow">Fleet condition</p><h3 id="maintenance-modal-title">Maintenance history</h3></div>
+            <button class="close-btn" type="button" onclick="closeMaintenanceModal()">×</button>
+        </div>
+        <div id="maintenance-issue-list" class="maintenance-issue-list"></div>
+        <?php if ($dashboard['isAdmin']): ?>
+        <form id="maintenance-issue-form" method="POST" enctype="multipart/form-data" action="">
+            <?= csrf_field() ?>
+            <h4>Report damage or a repair need</h4>
+            <label for="maintenance-details">Damage and symptoms</label>
+            <textarea id="maintenance-details" name="details" class="form-control" rows="3" maxlength="5000" required placeholder="Describe the damage, warning light, or repair needed"></textarea>
+            <label for="maintenance-photo">Photo (optional)</label>
+            <input id="maintenance-photo" type="file" name="photo" class="form-control" accept="image/jpeg,image/png,image/webp">
+            <small class="settings-help">JPG, PNG, or WebP, up to 5 MB. Images are only available to signed-in staff.</small>
+            <button type="submit" class="btn-primary" style="margin-top:14px;">Save maintenance report</button>
+        </form>
+        <?php endif; ?>
+    </div>
+</div>
 
 <!-- Modal: View Vehicle Details -->
 <div id="view-vehicle-modal" class="modal-backdrop" style="display: none;">
@@ -402,6 +435,27 @@
 .details-label { font-size: 0.76rem; font-weight: 700; color: #64748b; text-transform: uppercase; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
 .margin-top-xs { margin-top: 4px; }
+.maintenance-modal-card { width: min(760px, calc(100vw - 32px)); max-height: 88vh; overflow-y: auto; }
+.maintenance-modal-card .modal-header { align-items: flex-start; }
+.maintenance-modal-card .modal-header h3 { margin: 2px 0 0; }
+.maintenance-issue-list { display: grid; gap: 12px; max-height: 42vh; overflow-y: auto; margin: 4px 0 18px; }
+.maintenance-issue-card { padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+.maintenance-issue-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.maintenance-issue-heading small { color: var(--muted); font-size: .75rem; }
+.maintenance-issue-card p { margin: 10px 0; color: var(--text); white-space: pre-wrap; line-height: 1.5; }
+.maintenance-status { display: inline-flex; padding: 5px 9px; border-radius: 999px; background: rgba(245,158,11,.14); color: #a16207; font-size: .73rem; font-weight: 800; }
+.maintenance-status-resolved { background: rgba(34,197,94,.13); color: #15803d; }
+.maintenance-status-in-progress { background: rgba(67,97,238,.13); color: #3730a3; }
+.maintenance-status-waiting-for-parts { background: rgba(249,115,22,.13); color: #c2410c; }
+.maintenance-photo-link { color: var(--accent); font-size: .82rem; font-weight: 700; }
+.maintenance-status-form { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.maintenance-status-form label { color: var(--muted); font-size: .8rem; font-weight: 700; }
+.maintenance-status-form select { max-width: 200px; }
+.maintenance-empty { padding: 16px; color: var(--muted); text-align: center; }
+#maintenance-issue-form { padding-top: 17px; border-top: 1px solid var(--border); }
+#maintenance-issue-form h4 { margin: 0 0 13px; color: var(--text); }
+#maintenance-issue-form label { display: block; margin: 12px 0 6px; color: var(--text); font-size: .82rem; font-weight: 700; }
+#maintenance-issue-form input[type=file] { height: auto; }
 </style>
 
 <!-- JavaScript Logic for Fleet Command Operations -->
@@ -446,7 +500,7 @@ function viewVehicleDetails(button) {
     document.getElementById('view-modal-brand').innerText = brand;
     document.getElementById('view-modal-plate').innerText = 'Plate: ' + plate;
     document.getElementById('view-modal-type').innerText = type;
-    document.getElementById('view-modal-odometer').innerText = odo;
+    document.getElementById('view-modal-odometer').innerText = `${Number(odo).toLocaleString()} km`;
 
     const badgeClass = status === 'Available' ? 'badge-available' :
                        (status === 'In Transit' ? 'badge-in-transit' :
@@ -461,7 +515,7 @@ function closeViewModal() {
 }
 
 function editVehicle(button) {
-    const {id, code, plate, type, name, odometer, status} = button.dataset;
+    const {id, code, plate, type, name, status} = button.dataset;
     openAddVehicleModal();
     document.querySelector('#add-vehicle-modal h3').textContent = 'Edit Vehicle';
     document.querySelector('#vehicle-form').action = `<?= url('/vehicles') ?>/${id}`;
@@ -470,9 +524,63 @@ function editVehicle(button) {
     document.getElementById('add-plate').value = plate;
     document.getElementById('add-type').value = type;
     document.getElementById('add-brand').value = name;
-    document.getElementById('add-odometer').value = odometer;
     document.getElementById('add-status').value = status;
 }
+
+const maintenanceIssuesByVehicle = <?= json_encode($maintenanceIssuesByVehicle, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+const maintenanceAdmin = <?= !empty($dashboard['isAdmin']) ? 'true' : 'false' ?>;
+function openMaintenanceModal(vehicleId, label) {
+    const modal = document.getElementById('maintenance-modal');
+    document.getElementById('maintenance-modal-title').textContent = `Maintenance · ${label}`;
+    const list = document.getElementById('maintenance-issue-list');
+    const issues = maintenanceIssuesByVehicle[vehicleId] || [];
+    list.replaceChildren();
+    if (!issues.length) {
+        const empty = document.createElement('p');
+        empty.className = 'maintenance-empty';
+        empty.textContent = 'No damage or maintenance reports for this vehicle yet.';
+        list.appendChild(empty);
+    }
+    issues.forEach((issue) => {
+        const card = document.createElement('article');
+        card.className = 'maintenance-issue-card';
+        const status = document.createElement('span');
+        status.className = `maintenance-status maintenance-status-${issue.status.toLowerCase().replaceAll(' ', '-')}`;
+        status.textContent = issue.status;
+        const heading = document.createElement('div');
+        heading.className = 'maintenance-issue-heading';
+        const meta = document.createElement('small');
+        meta.textContent = `${issue.created_at || ''} · Reported by ${issue.reported_by}`;
+        heading.append(status, meta);
+        const details = document.createElement('p');
+        details.textContent = issue.details;
+        card.append(heading, details);
+        if (issue.photo) {
+            const photo = document.createElement('a');
+            photo.href = issue.photo;
+            photo.target = '_blank';
+            photo.rel = 'noopener';
+            photo.textContent = 'View damage photo';
+            photo.className = 'maintenance-photo-link';
+            card.appendChild(photo);
+        }
+        if (maintenanceAdmin) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `<?= url('/maintenance-issues') ?>/${issue.id}`;
+            form.className = 'maintenance-status-form';
+            form.innerHTML = `<input type="hidden" name="_token" value="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="_method" value="PUT"><label>Status</label><select name="status" class="form-control"><option>Reported</option><option>In Progress</option><option>Waiting for Parts</option><option>Resolved</option></select><button type="submit" class="action-btn">Update</button>`;
+            form.querySelector('select').value = issue.status;
+            card.appendChild(form);
+        }
+        list.appendChild(card);
+    });
+    if (maintenanceAdmin) {
+        document.getElementById('maintenance-issue-form').action = `<?= url('/vehicles') ?>/${vehicleId}/maintenance-issues`;
+    }
+    modal.style.display = 'flex';
+}
+function closeMaintenanceModal() { document.getElementById('maintenance-modal').style.display = 'none'; }
 
 function exportFleetCSV() {
     let csv = "VEHICLE ID,PLATE NO,TYPE,BRAND & MODEL,STATUS\n";
