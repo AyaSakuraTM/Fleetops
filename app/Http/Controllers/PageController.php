@@ -327,7 +327,18 @@ class PageController extends Controller
         }
 
         if ($page === 'vehicles') {
-            $dashboard['vehicles'] = Vehicle::orderBy('plate_number')->get();
+            $vehicles = Vehicle::query()
+                ->withSum(['tripRecords as tracked_distance' => fn ($query) => $query
+                    ->where('status', 'Completed')
+                    ->whereNotNull('total_distance')
+                    ->whereRaw('trip_records.departure_time >= vehicles.odometer_auto_since')], 'total_distance')
+                ->with(['maintenanceIssues' => fn ($query) => $query->with('reporter:id,name')->latest()])
+                ->orderBy('plate_number')
+                ->get();
+            $vehicles->each(function (Vehicle $vehicle): void {
+                $vehicle->odometer = (int) round((float) ($vehicle->odometer ?? 0) + (float) ($vehicle->tracked_distance ?? 0));
+            });
+            $dashboard['vehicles'] = $vehicles;
 
             // Generate the next vehicle code from the configured format (VHC-001, VHC-002, ...).
             $existingCodes = Vehicle::query()

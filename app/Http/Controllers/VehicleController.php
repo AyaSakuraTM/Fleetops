@@ -17,7 +17,6 @@ class VehicleController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'type' => ['required', 'string', 'max:100'],
             'status' => ['required', Rule::in(['Active', 'Available', 'In Transit', 'Reserved', 'Maintenance', 'Inactive'])],
-            'odometer' => ['nullable', 'integer', 'min:0'],
         ]);
 
         // Auto-generate the next available vehicle code; do not trust a user-submitted value.
@@ -30,6 +29,8 @@ class VehicleController extends Controller
         }
         $data['vehicle_code'] = 'VHC-' . str_pad($nextVehicleNumber + 1, 3, '0', STR_PAD_LEFT);
         $data['plate_number'] = strtoupper($data['plate_number']);
+        $data['odometer'] = 0;
+        $data['odometer_auto_since'] = now()->toDateString();
         if ($data['status'] === 'Available') $data['status'] = 'Active';
         $vehicle = Vehicle::create($data);
         AuditLog::record($request, 'Vehicle added', 'Fleet', "Added {$vehicle->vehicle_code} ({$vehicle->plate_number}) to the fleet.");
@@ -45,7 +46,6 @@ class VehicleController extends Controller
             'name' => ['required', 'string', 'max:150'],
             'type' => ['required', 'string', 'max:100'],
             'status' => ['required', Rule::in(['Active', 'Available', 'In Transit', 'Reserved', 'Maintenance', 'Inactive'])],
-            'odometer' => ['nullable', 'integer', 'min:0'],
         ]);
 
         $data['vehicle_code'] = strtoupper($data['vehicle_code']);
