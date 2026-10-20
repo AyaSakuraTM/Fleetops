@@ -36,7 +36,7 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
     Route::get('/dispatches/active', [PageController::class, 'activeDispatches'])->name('dispatches.active');
     Route::get('/dispatches/place-search', [DispatchController::class, 'searchPlaces'])->name('dispatches.place-search');
     Route::get('/dashboard', [PageController::class, 'show'])->defaults('page', 'dashboard')->middleware(AdminOnly::class)->name('dashboard');
-    foreach (['vehicles', 'reservations', 'drivers', 'fuel-logs', 'cost-analytics', 'driver-analytics', 'routes', 'reports', 'settings', 'usermanagement', 'notifications'] as $page) {
+    foreach (['vehicles', 'reservations', 'drivers', 'fuel-logs', 'cost-analytics', 'driver-analytics', 'routes', 'reports', 'settings', 'usermanagement', 'audit-logs', 'notifications'] as $page) {
         Route::get('/'.$page, [PageController::class, 'show'])->defaults('page', $page)->middleware(AdminOnly::class)->name($page);
     }
 
