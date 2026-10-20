@@ -10,6 +10,7 @@ use App\Http\Controllers\PageController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\ReportPrintController;
 use App\Http\Controllers\SettingsController;
+use App\Http\Controllers\TripExpenseController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Middleware\PreventBackHistory;
@@ -52,13 +53,16 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
         }
         Route::post('/reservations', [ReservationController::class, 'store'])->name('reservations.store');
         Route::post('/fuel-logs', [FleetCostController::class, 'storeFuelLog'])->name('fuel-logs.store');
+        Route::post('/trip-expenses', [TripExpenseController::class, 'store'])->name('trip-expenses.store');
     });
 
     // Viewing proof images is read-only, so authenticated Users may access it too.
     Route::get('/fuel-logs/{fuelLog}/proof', [FleetCostController::class, 'showFuelProof'])->name('fuel-logs.proof');
+    Route::get('/trip-expenses/{tripExpense}/receipt', [TripExpenseController::class, 'receipt'])->name('trip-expenses.receipt');
 
     Route::middleware(AdminOnly::class)->group(function (): void {
         Route::post('/fuel-logs', [FleetCostController::class, 'storeFuelLog'])->name('fuel-logs.store');
+        Route::post('/trip-expenses', [TripExpenseController::class, 'store'])->name('trip-expenses.store');
         Route::post('/usermanagement', [UserManagementController::class, 'store'])->name('usermanagement.store');
         Route::put('/usermanagement/{user}', [UserManagementController::class, 'update'])->name('usermanagement.update');
 
