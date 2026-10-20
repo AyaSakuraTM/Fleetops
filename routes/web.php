@@ -4,6 +4,7 @@ use App\Http\Controllers\ApiController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DispatchController;
 use App\Http\Controllers\FleetCostController;
+use App\Http\Controllers\MaintenanceIssueController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ReservationController;
@@ -79,7 +80,11 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
         Route::post('/dispatches/{dispatch}/status', [DispatchController::class, 'updateStatus'])->name('dispatches.update-status');
         Route::post('/vehicles', [VehicleController::class, 'store'])->name('vehicles.store');
         Route::put('/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('vehicles.update');
+        Route::post('/vehicles/{vehicle}/maintenance-issues', [MaintenanceIssueController::class, 'store'])->name('maintenance-issues.store');
+        Route::put('/maintenance-issues/{maintenanceIssue}', [MaintenanceIssueController::class, 'update'])->name('maintenance-issues.update');
     });
+
+    Route::get('/maintenance-issues/{maintenanceIssue}/photo', [MaintenanceIssueController::class, 'photo'])->name('maintenance-issues.photo');
 });
 Route::prefix('api')->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])->group(function (): void {
     Route::get('/vehicles/live', [ApiController::class, 'getLiveVehicles']);
