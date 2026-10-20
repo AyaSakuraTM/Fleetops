@@ -23,16 +23,35 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
     <?php endif; ?>
 
     <div class="settings-grid">
-        <?php if ($dashboard['isAdmin']): ?>
         <section class="settings-card" aria-labelledby="profile-heading">
             <div class="settings-card-heading">
                 <span class="settings-icon" aria-hidden="true">👤</span>
-                <div><h4 id="profile-heading">Profile</h4><p>Update the name and email shown on your account.</p></div>
+                <div><h4 id="profile-heading">Profile</h4><p>Manage your profile picture and account details.</p></div>
             </div>
+            <div class="profile-picture-row">
+                <div class="profile-picture-preview">
+                    <?php if (!empty($user['profilePhotoUrl'])): ?>
+                        <img src="<?= htmlspecialchars($user['profilePhotoUrl'], ENT_QUOTES, 'UTF-8') ?>" alt="Current profile picture">
+                    <?php else: ?>
+                        <span><?= htmlspecialchars($user['initials'] ?? '', ENT_QUOTES, 'UTF-8') ?></span>
+                    <?php endif; ?>
+                </div>
+                <div class="profile-picture-content">
+                    <strong>Profile picture</strong>
+                    <p>Choose a photo to personalize your account across FleetOps.</p>
+                    <form method="POST" action="<?= route('settings.profile-photo') ?>" enctype="multipart/form-data" class="profile-photo-form">
+                        <?= csrf_field() ?>
+                        <label class="profile-photo-picker" for="profile-photo">Choose photo</label>
+                        <input type="file" id="profile-photo" name="profile_photo" accept="image/jpeg,image/png,image/webp" required>
+                        <button type="submit" class="btn-secondary">Upload picture</button>
+                        <small class="settings-help">JPG, PNG, or WebP. Maximum 5 MB.</small>
+                    </form>
+                </div>
+            </div>
+            <?php if ($dashboard['isAdmin']): ?>
             <form method="POST" action="<?= route('settings.profile') ?>" class="settings-form">
                 <?= csrf_field() ?>
                 <?= method_field('PUT') ?>
-                <fieldset style="display:contents;border:0;padding:0;" <?= $dashboard['isAdmin'] ? '' : 'disabled' ?>>
                 <div class="form-group">
                     <label for="profile-name">Full name</label>
                     <input class="form-control" type="text" id="profile-name" name="name" autocomplete="name" required maxlength="100" value="<?= htmlspecialchars($user['name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
@@ -42,11 +61,15 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
                     <input class="form-control" type="email" id="profile-email" name="email" autocomplete="email" required maxlength="100" value="<?= htmlspecialchars($user['email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
                     <small class="settings-help">Used for sign-in and account notices.</small>
                 </div>
-                <?php if ($dashboard['isAdmin']): ?><button type="submit" class="btn-primary">Save profile</button><?php endif; ?>
-                </fieldset>
+                <button type="submit" class="btn-primary">Save profile</button>
             </form>
+            <?php else: ?>
+            <div class="profile-summary">
+                <div><small>Full name</small><strong><?= htmlspecialchars($user['name'] ?? '', ENT_QUOTES, 'UTF-8') ?></strong></div>
+                <div><small>Email address</small><strong><?= htmlspecialchars($user['email'] ?? '', ENT_QUOTES, 'UTF-8') ?></strong></div>
+            </div>
+            <?php endif; ?>
         </section>
-        <?php endif; ?>
 
         <?php if ($dashboard['isAdmin']): ?>
         <section class="settings-card" aria-labelledby="security-heading">
@@ -130,11 +153,25 @@ $prefs = $user['preferences'] ?? ['theme' => 'light', 'date_format' => 'M d, Y',
     .settings-form .form-group { width: 100%; margin: 0; }
     .settings-form .form-control { width: 100%; margin-top: 6px; }
     .settings-help { display: block; margin-top: 5px; color: var(--muted); font-size: .78rem; }
+    .profile-picture-row { display:flex; align-items:center; gap:16px; margin-bottom:20px; padding:15px; border:1px solid var(--border); border-radius:14px; background:var(--bg); }
+    .profile-picture-preview { display:grid; place-items:center; flex:0 0 72px; width:72px; height:72px; overflow:hidden; border-radius:50%; background:linear-gradient(135deg,#4361ee,#7b2ff7); color:#fff; font-size:1.2rem; font-weight:800; }
+    .profile-picture-preview img { width:100%; height:100%; object-fit:cover; }
+    .profile-picture-content { min-width:0; }
+    .profile-picture-content > strong { color:var(--text); }
+    .profile-picture-content > p { margin:4px 0 10px; color:var(--muted); font-size:.82rem; }
+    .profile-summary { display:grid; gap:11px; }
+    .profile-summary small { display:block; margin-bottom:3px; color:var(--muted); font-size:.76rem; }
+    .profile-summary strong { color:var(--text); font-size:.9rem; }
+    .profile-photo-form { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+    .profile-photo-form input[type=file] { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; clip-path:inset(50%); }
+    .profile-photo-picker { display:inline-flex; align-items:center; min-height:38px; padding:0 12px; border:1px solid var(--border); border-radius:9px; background:var(--surface); color:var(--text); font-size:.82rem; font-weight:700; cursor:pointer; }
+    .profile-photo-form .settings-help { flex-basis:100%; margin:0; }
     .settings-note { margin-top: 14px; }
     .settings-preferences-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 14px; }
     @media (max-width: 760px) {
         .settings-grid { grid-template-columns: 1fr; }
         .settings-card-wide { grid-column: auto; }
         .settings-preferences-form { grid-template-columns: 1fr; }
+        .profile-picture-row { align-items:flex-start; }
     }
 </style>

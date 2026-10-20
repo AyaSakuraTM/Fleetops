@@ -215,6 +215,7 @@
         place-items: center;
         flex-shrink: 0;
       }
+      .sb-user-avatar img { width:100%; height:100%; border-radius:inherit; object-fit:cover; }
       .sb-user-info { flex: 1; overflow: hidden; }
       .sb-user-info strong {
         display: block;
@@ -601,7 +602,7 @@
 
         <!-- Bottom User Profile -->
         <div class="sb-user" id="sbUser">
-            <div class="sb-user-avatar"><?= htmlspecialchars($dashboard['user']['initials']) ?></div>
+            <div class="sb-user-avatar"><?php if (!empty($dashboard['user']['profilePhotoUrl'])): ?><img src="<?= htmlspecialchars($dashboard['user']['profilePhotoUrl'], ENT_QUOTES, 'UTF-8') ?>" alt=""><?php else: ?><?= htmlspecialchars($dashboard['user']['initials']) ?><?php endif; ?></div>
             <div class="sb-user-info">
                 <strong><?= htmlspecialchars($dashboard['user']['name']) ?></strong>
                 <small><?= htmlspecialchars($dashboard['user']['title']) ?></small>
