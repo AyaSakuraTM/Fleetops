@@ -7,8 +7,10 @@ use App\Models\AuditLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SettingsController extends Controller
 {
@@ -34,6 +36,38 @@ class SettingsController extends Controller
         AuditLog::record($request, 'Profile updated', 'Settings', 'Updated profile name and email address.');
 
         return back()->with('status', 'Profile updated successfully.');
+    }
+
+    public function updateProfilePhoto(Request $request): RedirectResponse
+    {
+        $data = $request->validate([
+            'profile_photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ]);
+
+        $user = $request->user();
+        $oldPath = $user->profile_photo_path;
+        $newPath = $request->file('profile_photo')->store('profile-photos', 'local');
+        $user->profile_photo_path = $newPath;
+        $user->save();
+
+        if ($oldPath && $oldPath !== $newPath) {
+            Storage::disk('local')->delete($oldPath);
+        }
+
+        AuditLog::record($request, 'Profile photo changed', 'Settings', 'Updated profile picture.');
+
+        return back()->with('status', 'Profile picture updated.');
+    }
+
+    public function showProfilePhoto(Request $request): BinaryFileResponse
+    {
+        $path = $request->user()?->profile_photo_path;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return response()->file(Storage::disk('local')->path($path), [
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function updatePassword(Request $request): RedirectResponse

@@ -180,6 +180,7 @@ class PageController extends Controller
                 'title' => $user->role ?? 'Staff',
                 'role' => $user->role ?? 'Staff',
                 'initials' => strtoupper(substr($user->name, 0, 2)),
+                'profilePhotoUrl' => $user->profile_photo_path ? route('profile-photo', ['v' => $user->updated_at?->timestamp ?? $user->id]) : null,
                 'preferences' => $user->preferences_with_defaults,
             ],
             'stats' => [
