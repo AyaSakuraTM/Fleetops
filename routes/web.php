@@ -40,6 +40,9 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
         ->middleware('throttle:5,1')->name('reports.verify-print-password');
     Route::get('/dispatches/active', [PageController::class, 'activeDispatches'])->name('dispatches.active');
     Route::get('/dispatches/place-search', [DispatchController::class, 'searchPlaces'])->name('dispatches.place-search');
+    Route::put('/settings/profile', [SettingsController::class, 'updateProfile'])->middleware(AdminOnly::class)->name('settings.profile');
+    Route::post('/settings/profile-photo', [SettingsController::class, 'updateProfilePhoto'])->name('settings.profile-photo');
+    Route::get('/profile-photo', [SettingsController::class, 'showProfilePhoto'])->name('profile-photo');
     Route::get('/dashboard', [PageController::class, 'show'])->defaults('page', 'dashboard')->middleware(AdminOnly::class)->name('dashboard');
     foreach (['vehicles', 'reservations', 'drivers', 'fuel-logs', 'cost-analytics', 'driver-analytics', 'routes', 'reports', 'settings', 'usermanagement', 'audit-logs', 'notifications'] as $page) {
         Route::get('/'.$page, [PageController::class, 'show'])->defaults('page', $page)->middleware(AdminOnly::class)->name($page);
@@ -66,7 +69,6 @@ Route::middleware(['auth', PreventBackHistory::class])->group(function (): void 
         Route::post('/usermanagement', [UserManagementController::class, 'store'])->name('usermanagement.store');
         Route::put('/usermanagement/{user}', [UserManagementController::class, 'update'])->name('usermanagement.update');
 
-        Route::put('/settings/profile', [SettingsController::class, 'updateProfile'])->name('settings.profile');
         Route::put('/settings/password', [SettingsController::class, 'updatePassword'])->name('settings.password');
         Route::put('/settings/preferences', [SettingsController::class, 'updatePreferences'])->name('settings.preferences');
 
