@@ -9,6 +9,7 @@ use App\Models\FuelLog;
 use App\Models\MaintenanceRecord;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\TripExpense;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -159,7 +160,7 @@ class PageController extends Controller
         $myReservations = (clone $reservationScope);
         $pendingReservationCount = (clone $reservationScope)->whereRaw('LOWER(reservations.status) = ?', ['pending'])->count('reservations.id');
 
-        $finance = $this->buildFinanceData();
+        $finance = $this->buildFinanceData($user);
 
         // The original database used reservation_date; the workflow module uses
         // requested_date. Support both while the compatibility migration runs.
@@ -253,6 +254,20 @@ class PageController extends Controller
                     ->get()
                 : [],
             'fuelLogs' => $fuelLogs,
+            'tripExpenses' => $page === 'cost-analytics'
+                ? TripExpense::with(['user:id,name', 'vehicle:id,plate_number,name'])
+                    ->when($user->role !== 'Admin', fn ($query) => $query->where('user_id', $user->id))
+                    ->orderByDesc('expense_date')->orderByDesc('id')->limit(30)
+                    ->get()->map(fn (TripExpense $expense): array => [
+                        'id' => $expense->id,
+                        'category' => $expense->category,
+                        'description' => $expense->description,
+                        'amount' => $expense->amount,
+                        'date' => $expense->expense_date?->format('M d, Y'),
+                        'vehicle' => $expense->vehicle?->plate_number ?? 'Vehicle removed',
+                        'submitted_by' => $expense->user?->name ?? 'Former account',
+                    ])->all()
+                : [],
             'quickActions' => $user->role === 'Admin'
                 ? ['Add Vehicle', 'Log Fuel', 'Create Reservation', 'Report Incident', 'Dispatch Log', 'View Routes', 'Check Drivers', 'Settings']
                 : ['View Vehicles', 'Review Fuel Logs', 'View Reservations', 'View Routes', 'Review Drivers', 'View Reports', 'View Notifications', 'Settings'],
@@ -378,7 +393,7 @@ class PageController extends Controller
         return ['counts' => $counts, 'total' => array_sum($counts)];
     }
 
-    private function buildFinanceData(): array
+    private function buildFinanceData(User $viewer): array
     {
         $now = Carbon::now();
         $startOfThisMonth = $now->copy()->startOfMonth();
@@ -390,8 +405,18 @@ class PageController extends Controller
         $maintThisMonth = (float) MaintenanceRecord::whereBetween('serviced_at', [$startOfThisMonth, $now])->sum('cost');
         $maintLastMonth = (float) MaintenanceRecord::whereBetween('serviced_at', [$startOfLastMonth, $endOfLastMonth])->sum('cost');
 
-        $totalThisMonth = $fuelThisMonth + $maintThisMonth;
-        $totalLastMonth = $fuelLastMonth + $maintLastMonth;
+        $tripExpenses = fn () => TripExpense::query()->when($viewer->role !== 'Admin', fn ($query) => $query->where('user_id', $viewer->id));
+        $expenseTotals = [];
+        foreach (['Meals', 'Parking', 'Other'] as $category) {
+            $expenseTotals[$category] = (float) $tripExpenses()->where('category', $category)
+                ->whereBetween('expense_date', [$startOfThisMonth->toDateString(), $now->toDateString()])->sum('amount');
+        }
+        $tripExpensesThisMonth = array_sum($expenseTotals);
+        $tripExpensesLastMonth = (float) $tripExpenses()
+            ->whereBetween('expense_date', [$startOfLastMonth->toDateString(), $endOfLastMonth->toDateString()])->sum('amount');
+
+        $totalThisMonth = $fuelThisMonth + $maintThisMonth + $tripExpensesThisMonth;
+        $totalLastMonth = $fuelLastMonth + $maintLastMonth + $tripExpensesLastMonth;
 
         $pctChange = function (float $current, float $previous): ?float {
             if ($previous <= 0.0) {
@@ -409,9 +434,10 @@ class PageController extends Controller
 
             $fuel = (float) FuelLog::whereBetween('logged_at', [$monthStart, $monthEnd])->sum('cost');
             $maint = (float) MaintenanceRecord::whereBetween('serviced_at', [$monthStart, $monthEnd])->sum('cost');
+            $otherExpenses = (float) $tripExpenses()->whereBetween('expense_date', [$monthStart->toDateString(), $monthEnd->toDateString()])->sum('amount');
 
             $trendLabels[] = $monthStart->format('M');
-            $trendValues[] = round($fuel + $maint, 2);
+            $trendValues[] = round($fuel + $maint + $otherExpenses, 2);
         }
 
         return [
@@ -419,19 +445,23 @@ class PageController extends Controller
                 ['key' => 'total_transport_cost', 'title' => 'Total Transport Cost', 'value' => $totalThisMonth, 'change' => $pctChange($totalThisMonth, $totalLastMonth), 'meta' => 'vs last month'],
                 ['key' => 'fuel_expenses', 'title' => 'Fuel Expenses', 'value' => $fuelThisMonth, 'change' => $pctChange($fuelThisMonth, $fuelLastMonth), 'meta' => 'vs last month'],
                 ['key' => 'maintenance_costs', 'title' => 'Maintenance Costs', 'value' => $maintThisMonth, 'change' => $pctChange($maintThisMonth, $maintLastMonth), 'meta' => 'vs last month'],
+                ['key' => 'trip_expenses', 'title' => 'Trip Expenses', 'value' => $tripExpensesThisMonth, 'meta' => 'Meals, parking & other'],
             ],
             'trend' => [
                 'labels' => $trendLabels,
                 'values' => $trendValues,
             ],
             'breakdown' => [
-                'labels' => ['Fuel', 'Maintenance'],
-                'values' => [round($fuelThisMonth, 2), round($maintThisMonth, 2)],
-                'colors' => ['#ef4444', '#f59e0b'],
+                'labels' => ['Fuel', 'Maintenance', 'Meals', 'Parking', 'Other trip costs'],
+                'values' => [round($fuelThisMonth, 2), round($maintThisMonth, 2), round($expenseTotals['Meals'], 2), round($expenseTotals['Parking'], 2), round($expenseTotals['Other'], 2)],
+                'colors' => ['#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4', '#64748b'],
             ],
             'totals' => [
                 'fuel_this_month' => $fuelThisMonth,
                 'maintenance_this_month' => $maintThisMonth,
+                'trip_expenses_this_month' => $tripExpensesThisMonth,
+                'meal_this_month' => $expenseTotals['Meals'],
+                'parking_this_month' => $expenseTotals['Parking'],
                 'total_this_month' => $totalThisMonth,
             ],
         ];
