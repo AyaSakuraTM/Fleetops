@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Alert;
+use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -45,6 +46,8 @@ class UserManagementController extends Controller
 
         Alert::log('👤', 'User Added', "{$user->name} was added as {$user->role} by {$request->user()->name}.");
 
+        AuditLog::record($request, 'User created', 'User Management', "Created {$user->name} ({$user->email}) with the {$user->role} role and {$user->status} status.");
+
         return back()->with('status', 'User created successfully.');
     }
 
@@ -75,6 +78,8 @@ class UserManagementController extends Controller
                 $status === 'inactive' ? 'warning' : 'info',
             );
 
+            AuditLog::record($request, $status === 'inactive' ? 'Account deactivated' : 'Account reactivated', 'User Management', "Changed {$user->name}'s account status to {$status}.");
+
             return back()->with('status', "User account {$status} successfully.");
         }
 
@@ -86,6 +91,7 @@ class UserManagementController extends Controller
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ]);
 
+        $before = ['name' => $user->name, 'email' => $user->email, 'role' => $user->role, 'status' => $user->status];
         DB::transaction(function () use ($user, $data) {
             $user->name = $data['name'];
             $user->email = strtolower($data['email']);
@@ -101,6 +107,17 @@ class UserManagementController extends Controller
         });
 
         Alert::log('✏️', 'User Updated', "{$user->name}'s account was updated by {$request->user()->name}.");
+
+        $changes = [];
+        foreach (['name', 'email', 'role', 'status'] as $field) {
+            if ($before[$field] !== $user->{$field}) {
+                $changes[] = ucfirst($field)." changed from {$before[$field]} to {$user->{$field}}";
+            }
+        }
+        if (! empty($data['password'])) {
+            $changes[] = 'password reset';
+        }
+        AuditLog::record($request, 'User updated', 'User Management', "Updated {$user->name}'s account: ".(count($changes) ? implode('; ', $changes) : 'no profile fields changed').'.');
 
         return back()->with('status', 'User updated successfully.');
     }

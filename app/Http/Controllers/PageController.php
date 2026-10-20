@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Alert;
+use App\Models\AuditLog;
 use App\Models\Dispatch;
 use App\Models\FuelLog;
 use App\Models\MaintenanceRecord;
@@ -80,12 +81,25 @@ class PageController extends Controller
             'dashboard' => 'Dashboard Overview', 'vehicles' => 'Vehicles Management', 'reservations' => 'Reservations',
             'drivers' => 'Drivers', 'fuel-logs' => 'Fuel Logs', 'cost-analytics' => 'Cost Analytics',
             'driver-analytics' => 'Driver & Cost Analytics', 'routes' => 'Routes', 'reports' => 'Reports',
-            'settings' => 'Settings', 'usermanagement' => 'User Management', 'notifications' => 'Notifications',
+            'settings' => 'Settings', 'usermanagement' => 'User Management', 'audit-logs' => 'Audit Logs', 'notifications' => 'Notifications',
         ];
 
         abort_unless(isset($titles[$page]), 404);
 
         $user = request()->user();
+        abort_if($page === 'audit-logs' && $user->role !== 'Admin', 403, 'Only administrators can view audit logs.');
+        $auditQuery = AuditLog::query()->with('user:id,name');
+        if ($page === 'audit-logs') {
+            if (request()->filled('module')) {
+                $auditQuery->where('module', request()->string('module')->toString());
+            }
+            if (request()->filled('search')) {
+                $search = request()->string('search')->toString();
+                $auditQuery->where(fn ($query) => $query->where('actor_name', 'like', "%{$search}%")
+                    ->orWhere('action', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%"));
+            }
+        }
         $fuelLogs = [];
         if ($page === 'fuel-logs') {
             $fuelLogQuery = FuelLog::with(['user:id,name', 'vehicle:id,name,plate_number', 'driver.user:id,name']);
@@ -205,6 +219,24 @@ class PageController extends Controller
             'users' => $page === 'usermanagement'
                 ? User::orderBy('name')->get(['id', 'name', 'email', 'role', 'status'])->all()
                 : [],
+            'auditLogs' => $page === 'audit-logs'
+                ? $auditQuery->orderByDesc('created_at')->limit(100)->get()
+                    ->map(fn (AuditLog $log): array => [
+                        'actor' => $log->user?->name ?? $log->actor_name,
+                        'action' => $log->action,
+                        'module' => $log->module,
+                        'description' => $log->description,
+                        'ip' => $log->ip_address,
+                        'created_at' => $log->created_at?->format('M d, Y · h:i A'),
+                        'relative_time' => $log->created_at?->diffForHumans(),
+                    ])->all()
+                : [],
+            'auditStats' => $page === 'audit-logs' ? [
+                'total' => AuditLog::count(),
+                'today' => AuditLog::whereDate('created_at', today())->count(),
+                'actors' => AuditLog::whereDate('created_at', today())->distinct('user_id')->count('user_id'),
+            ] : [],
+            'auditModules' => $page === 'audit-logs' ? AuditLog::query()->distinct()->orderBy('module')->pluck('module')->all() : [],
             'userRoles' => ['User', 'Driver', 'Admin'],
             'vehicleOptions' => Vehicle::orderBy('plate_number')->get(['id', 'name', 'type', 'plate_number', 'fuel_level'])->all(),
             'driverOptions' => $page === 'fuel-logs'

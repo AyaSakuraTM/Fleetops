@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Alert;
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Notifications\TwoFactorCodeNotification;
 use Illuminate\Auth\Events\PasswordReset;
@@ -27,12 +28,14 @@ class AuthController extends Controller
         $credentials = $request->validate(['email' => ['required', 'email'], 'password' => ['required', 'string']]);
 
         if (! Auth::validate($credentials)) {
+            AuditLog::record($request, 'Sign in failed', 'Authentication', 'Failed sign in attempt for '.strtolower($credentials['email']).'.');
             return back()->withErrors(['email' => 'Invalid email or password.'])->onlyInput('email');
         }
 
         $user = Auth::getLastAttempted();
 
         if (! $user instanceof User || $user->status !== 'active') {
+            AuditLog::record($request, 'Sign in blocked', 'Authentication', 'Sign in was blocked for an inactive or unavailable account.');
             return back()->withErrors(['email' => 'Invalid email or password.'])->onlyInput('email');
         }
 
@@ -83,6 +86,7 @@ class AuthController extends Controller
         $request->session()->forget('two_factor');
         Auth::login($user);
         $request->session()->regenerate();
+        AuditLog::record($request, 'Signed in', 'Authentication', 'Completed two-factor authentication and signed in.');
 
         return redirect()->to($this->dashboardPath($user));
     }
@@ -194,6 +198,7 @@ class AuthController extends Controller
         $user->save();
 
         Alert::log('🆕', 'New User Registered', "{$user->name} ({$user->email}) just signed up.");
+        AuditLog::record($request, 'Account registered', 'Authentication', "Registered a new account for {$user->name}.");
 
         Auth::login($user);
         $request->session()->regenerate();

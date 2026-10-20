@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Alert;
+use App\Models\AuditLog;
 use App\Models\Driver;
 use App\Models\FuelLog;
 use App\Models\MaintenanceRecord;
@@ -77,6 +78,7 @@ class FleetCostController extends Controller
             $request->user()->name,
             $driverName
         ));
+        AuditLog::record($request, 'Fuel logged', 'Fuel & Costs', sprintf('Logged %.1fL for %s at PHP %s.', $log->liters, $vehicle->name ?? 'vehicle', number_format($log->cost, 2)));
 
         return back()->with('status', 'Fuel log recorded.');
     }
@@ -118,6 +120,7 @@ class FleetCostController extends Controller
             number_format($record->cost, 2),
             $request->user()->name
         ), 'warning');
+        AuditLog::record($request, 'Maintenance logged', 'Fuel & Costs', sprintf('Recorded %s maintenance for %s at PHP %s.', $record->description, $vehicle->name ?? 'vehicle', number_format($record->cost, 2)));
 
         return back()->with('status', 'Maintenance cost recorded.');
     }
