@@ -10,7 +10,7 @@ class Vehicle extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['vehicle_code', 'plate_number', 'name', 'status', 'type', 'fuel_level', 'odometer'];
+    protected $fillable = ['vehicle_code', 'plate_number', 'name', 'status', 'type', 'fuel_level', 'odometer', 'odometer_auto_since'];
 
     public function fuelLogs(): HasMany
     {
@@ -20,5 +20,15 @@ class Vehicle extends Model
     public function maintenanceRecords(): HasMany
     {
         return $this->hasMany(MaintenanceRecord::class);
+    }
+
+    public function maintenanceIssues(): HasMany
+    {
+        return $this->hasMany(MaintenanceIssue::class);
+    }
+
+    public function tripRecords(): HasMany
+    {
+        return $this->hasMany(TripRecord::class);
     }
 }
