@@ -736,7 +736,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Log out after seven minutes without activity across the user's open tabs.
     if (logoutForm) {
-        var idleTimeoutMs = 7 * 60 * 1000;
+        var idleTimeoutMs = 5 * 60 * 1000;
         var activityKey = 'fleetops.lastActivity';
         var lastActivity = Number(localStorage.getItem(activityKey)) || Date.now();
         var lastStoredActivity = lastActivity;
