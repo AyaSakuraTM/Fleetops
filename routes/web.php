@@ -7,6 +7,7 @@ use App\Http\Controllers\FleetCostController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\ReservationController;
+use App\Http\Controllers\ReportPrintController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\VehicleController;
@@ -33,6 +34,8 @@ Route::middleware('guest')->group(function (): void {
 });
 Route::post('/logout', [AuthController::class, 'destroy'])->middleware(['auth', PreventBackHistory::class])->name('logout');
 Route::middleware(['auth', PreventBackHistory::class])->group(function (): void {
+    Route::post('/reports/verify-print-password', [ReportPrintController::class, 'verifyPassword'])
+        ->middleware('throttle:5,1')->name('reports.verify-print-password');
     Route::get('/dispatches/active', [PageController::class, 'activeDispatches'])->name('dispatches.active');
     Route::get('/dispatches/place-search', [DispatchController::class, 'searchPlaces'])->name('dispatches.place-search');
     Route::get('/dashboard', [PageController::class, 'show'])->defaults('page', 'dashboard')->middleware(AdminOnly::class)->name('dashboard');
