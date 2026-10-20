@@ -11,7 +11,7 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
         <div>
             <p class="eyebrow">Fleet expenses</p>
             <h3>Fuel Logs</h3>
-            <p class="fuel-intro"><?= $dashboard['isAdmin'] ? 'Record refuels and keep an eye on fuel volume and spend.' : 'Submit fuel records and review your own entries and proof photos.' ?></p>
+            <p class="fuel-intro"><?= $dashboard['isAdmin'] ? 'Record refuels, compare fuel volume and spend, and attach receipt proof.' : 'Submit fuel records with receipt proof and review your own entries.' ?> <a class="fuel-expense-link" href="<?= htmlspecialchars($dashboard['basePath'].'/cost-analytics', ENT_QUOTES, 'UTF-8') ?>">Log meals and parking in Cost Analytics</a></p>
         </div>
         <button class="pill-button" type="button" onclick="openFuelModal()">+ Log fuel</button>
     </div>
@@ -148,7 +148,7 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
                 </div>
             </div>
             <div class="form-group fuel-field">
-                <label for="fuel-proof">Fuel receipt / refuel photo (JPG, PNG, or WebP; max 5 MB)</label>
+                <label for="fuel-proof">Fuel receipt (required proof; JPG, PNG, or WebP, max 5 MB)</label>
                 <input class="form-control" type="file" id="fuel-proof" name="receipt_image" accept="image/jpeg,image/png,image/webp" required>
             </div>
             <div class="fuel-input-grid">
@@ -175,6 +175,8 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
 </div>
 <style>
     .fuel-intro { margin: 6px 0 0; color: var(--muted); font-size: .9rem; }
+    .fuel-expense-link { display:inline-block; margin-left:6px; color:var(--accent); font-weight:700; text-decoration:none; }
+    .fuel-expense-link:hover { text-decoration:underline; }
     .fuel-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 4px 0 20px; }
     .fuel-stat { display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 16px 18px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
     .fuel-stat span, .fuel-stat small { color: var(--muted); font-size: .8rem; }
