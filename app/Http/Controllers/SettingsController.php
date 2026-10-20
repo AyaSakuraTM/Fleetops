@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -40,6 +41,10 @@ class SettingsController extends Controller
 
     public function updateProfilePhoto(Request $request): RedirectResponse
     {
+        if (! Schema::hasColumn('users', 'profile_photo_path')) {
+            return back()->withErrors(['profile_photo' => 'Profile photo uploads are not enabled on the server yet. Run the pending database migrations and try again.']);
+        }
+
         $data = $request->validate([
             'profile_photo' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
@@ -47,6 +52,10 @@ class SettingsController extends Controller
         $user = $request->user();
         $oldPath = $user->profile_photo_path;
         $newPath = $request->file('profile_photo')->store('profile-photos', 'local');
+        if (! is_string($newPath) || $newPath === '') {
+            return back()->withErrors(['profile_photo' => 'The photo could not be saved. Check that the server storage directory is writable.']);
+        }
+
         $user->profile_photo_path = $newPath;
         $user->save();
 
@@ -54,7 +63,9 @@ class SettingsController extends Controller
             Storage::disk('local')->delete($oldPath);
         }
 
-        AuditLog::record($request, 'Profile photo changed', 'Settings', 'Updated profile picture.');
+        if (Schema::hasTable('audit_logs')) {
+            AuditLog::record($request, 'Profile photo changed', 'Settings', 'Updated profile picture.');
+        }
 
         return back()->with('status', 'Profile picture updated.');
     }
