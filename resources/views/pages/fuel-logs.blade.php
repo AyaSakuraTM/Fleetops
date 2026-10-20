@@ -187,8 +187,9 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
     .fuel-table-heading p { margin: 0; color: var(--muted); font-size: .82rem; }
     .fuel-search-wrap { display: flex; align-items: center; gap: 8px; width: min(100%, 270px); padding: 0 12px; border: 1px solid var(--border); border-radius: 10px; color: var(--muted); }
     .fuel-search-wrap input { width: 100%; min-width: 0; padding: 10px 0; border: 0; outline: 0; background: transparent; color: var(--text); }
-    .fuel-log-panel .table-wrapper { border-top: 1px solid var(--border); }
-    .fuel-log-panel table { margin: 0; }
+    .fuel-log-panel .table-wrapper { border-top: 1px solid var(--border); max-height: min(62vh, 640px); overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+    .fuel-log-panel table { min-width: 1080px; margin: 0; }
+    .fuel-log-panel thead th { position: sticky; top: 0; z-index: 2; background: var(--surface); }
     .fuel-log-panel th, .fuel-log-panel td { padding: 13px 20px; }
     .fuel-log-panel td strong { color: var(--text); }
     .fuel-meter { width: 110px; max-width: 100%; height: 9px; overflow: hidden; margin-bottom: 4px; border-radius: 999px; background: var(--border); }
