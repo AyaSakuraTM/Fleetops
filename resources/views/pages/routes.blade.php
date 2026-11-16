@@ -279,17 +279,17 @@
                             <span class="route-selection-count" id="route-selection-count"></span>
                         </div>
                         <div class="route-options" id="route-options" role="group" aria-label="Select a driving route"></div>
-                        <div class="map-feature-controls">
-                            <label><input type="checkbox" id="traffic-overlay-toggle"> Show live traffic flow</label>
-                            <button type="button" id="gas-station-search" onclick="findNearbyGasStations()">⛽ Nearby gas stations</button>
-                        </div>
-                        <div class="map-feature-status" id="gas-station-status" aria-live="polite">Gas stations are searched within 5 km of the selected vehicle</div>
-                        <div class="gas-station-results" id="gas-station-results"></div>
                         <div class="route-instructions" id="route-instructions" hidden>
                             <h4>Road-by-road directions</h4>
                             <ol class="route-instruction-list" id="route-instruction-list"></ol>
                         </div>
                     </div>
+                    <div class="map-feature-controls">
+                        <label><input type="checkbox" id="traffic-overlay-toggle"> Show live traffic flow</label>
+                        <button type="button" id="gas-station-search" onclick="findNearbyGasStations()">⛽ Nearby gas stations</button>
+                    </div>
+                    <div class="map-feature-status" id="gas-station-status" aria-live="polite">Gas stations are searched within 5 km of the selected vehicle</div>
+                    <div class="gas-station-results" id="gas-station-results"></div>
 
                     <!-- Arrival Monitoring Action Box -->
                     <div id="arrival-alert-box" class="arrival-success-box" style="display: none;">
