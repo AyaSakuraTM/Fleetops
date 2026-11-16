@@ -1273,6 +1273,81 @@ public function getMyActiveDispatches(): void
     }
 
     /**
+     * GET /api/gas-stations?lat={latitude}&lng={longitude}&radius={meters}
+     * Return nearby OpenStreetMap fuel stations, ranked by straight-line distance.
+     */
+    public function getNearbyGasStations(): void
+    {
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User', 'Staff']);
+
+        $lat = filter_var($_GET['lat'] ?? null, FILTER_VALIDATE_FLOAT);
+        $lng = filter_var($_GET['lng'] ?? null, FILTER_VALIDATE_FLOAT);
+        $radius = filter_var($_GET['radius'] ?? 5000, FILTER_VALIDATE_INT);
+        if ($lat === false || $lng === false || $lat < -90 || $lat > 90 || $lng < -180 || $lng > 180
+            || $radius === false || $radius < 250 || $radius > 10000) {
+            $this->jsonResponse(['success' => false, 'error' => 'Valid coordinates and a radius between 250 and 10000 meters are required.'], 422);
+            return;
+        }
+        if (!function_exists('curl_init')) {
+            $this->jsonResponse(['success' => false, 'error' => 'Gas station search is temporarily unavailable.'], 503);
+            return;
+        }
+
+        $query = '[out:json][timeout:15];(node["amenity"="fuel"](around:' . (int) $radius . ',' . (float) $lat . ',' . (float) $lng . ');way["amenity"="fuel"](around:' . (int) $radius . ',' . (float) $lat . ',' . (float) $lng . ');relation["amenity"="fuel"](around:' . (int) $radius . ',' . (float) $lat . ',' . (float) $lng . '););out center tags;';
+        $curl = curl_init('https://overpass-api.de/api/interpreter');
+        curl_setopt_array($curl, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => http_build_query(['data' => $query]),
+            CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 18,
+            CURLOPT_USERAGENT => 'FleetopsMap/1.0 (OpenStreetMap fuel station lookup)',
+        ]);
+        $body = curl_exec($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+
+        $response = is_string($body) ? json_decode($body, true) : null;
+        if ($status < 200 || $status >= 300 || !is_array($response) || !is_array($response['elements'] ?? null)) {
+            $this->jsonResponse(['success' => false, 'error' => 'OpenStreetMap fuel station data could not be loaded. Please try again shortly.'], 502);
+            return;
+        }
+
+        $stations = [];
+        foreach ($response['elements'] as $element) {
+            $point = $element['center'] ?? $element;
+            if (!is_array($point) || !is_numeric($point['lat'] ?? null) || !is_numeric($point['lon'] ?? null)) {
+                continue;
+            }
+            $distanceKm = $this->haversineDistance((float) $lat, (float) $lng, (float) $point['lat'], (float) $point['lon']);
+            $tags = is_array($element['tags'] ?? null) ? $element['tags'] : [];
+            $stations[] = [
+                'id' => (string) ($element['type'] ?? 'node') . '/' . (string) ($element['id'] ?? ''),
+                'name' => trim((string) ($tags['name'] ?? $tags['brand'] ?? 'Fuel station')),
+                'brand' => trim((string) ($tags['brand'] ?? '')),
+                'lat' => (float) $point['lat'],
+                'lng' => (float) $point['lon'],
+                'distance_km' => round($distanceKm, 2),
+                'address' => trim(implode(', ', array_filter([
+                    $tags['addr:housenumber'] ?? null,
+                    $tags['addr:street'] ?? null,
+                    $tags['addr:city'] ?? null,
+                ]))),
+                'opening_hours' => trim((string) ($tags['opening_hours'] ?? '')),
+            ];
+        }
+        usort($stations, fn ($left, $right) => $left['distance_km'] <=> $right['distance_km']);
+        $this->jsonResponse([
+            'success' => true,
+            'center' => ['lat' => (float) $lat, 'lng' => (float) $lng],
+            'radius_meters' => (int) $radius,
+            'stations' => array_slice($stations, 0, 60),
+            'attribution' => '© OpenStreetMap contributors',
+        ]);
+    }
+
+    /**
      * GET /api/traffic/flow/{zoom}/{x}/{y}.png
      * Proxy TomTom raster traffic tiles so the API key is never sent to the browser.
      */
