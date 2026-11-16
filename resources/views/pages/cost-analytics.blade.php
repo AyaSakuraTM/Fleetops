@@ -206,6 +206,9 @@ function closeExpenseModal() {
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const darkThemeActive = localStorage.getItem('darkMode') === '1' || document.documentElement.getAttribute('data-theme') === 'dark';
+    Chart.defaults.color = darkThemeActive ? '#c5d2e5' : '#64748b';
+    Chart.defaults.borderColor = darkThemeActive ? 'rgba(164,179,201,.2)' : 'rgba(100,116,139,.18)';
     const trendLabels = <?= json_encode($trend['labels'] ?? []) ?>;
     const trendValues = <?= json_encode($trend['values'] ?? []) ?>;
     const breakdownLabels = <?= json_encode($breakdown['labels'] ?? []) ?>;
