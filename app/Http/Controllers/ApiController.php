@@ -1473,6 +1473,9 @@ public function getMyActiveDispatches(): void
             'alternative_routes' => [
                 'target_count' => 3,
             ],
+            'instructions' => true,
+            'instructions_format' => 'text',
+            'language' => 'en',
         ]);
         if ($requestBody === false) {
             throw new \RuntimeException('Unable to encode the OpenRouteService routing request.');
@@ -1653,6 +1656,32 @@ public function getMyActiveDispatches(): void
                 }
             }
 
+            $instructions = is_array($route['instructions'] ?? null) ? $route['instructions'] : [];
+            if ($instructions === []) {
+                $segments = $routeFormat === 'routes'
+                    ? ($route['segments'] ?? [])
+                    : ($route['properties']['segments'] ?? []);
+                if (is_array($segments)) {
+                    foreach ($segments as $segment) {
+                        foreach (($segment['steps'] ?? []) as $step) {
+                            if (!is_array($step)) {
+                                continue;
+                            }
+                            $instruction = trim((string) ($step['instruction'] ?? ''));
+                            if ($instruction === '') {
+                                continue;
+                            }
+                            $instructions[] = [
+                                'text' => $instruction,
+                                'street' => trim((string) ($step['name'] ?? '')),
+                                'distance_meters' => is_numeric($step['distance'] ?? null) ? (float) $step['distance'] : null,
+                                'maneuver' => (string) ($step['type'] ?? ''),
+                            ];
+                        }
+                    }
+                }
+            }
+
             $timeMins = (int)round((float)$summary['duration'] / 60);
             $routeOptions[] = [
                 'route_number' => count($routeOptions) + 1,
@@ -1666,7 +1695,7 @@ public function getMyActiveDispatches(): void
                 'traffic_delay_mins' => isset($summary['traffic_delay_seconds']) && is_numeric($summary['traffic_delay_seconds'])
                     ? (int) round(((float) $summary['traffic_delay_seconds']) / 60)
                     : null,
-                'instructions' => is_array($route['instructions'] ?? null) ? $route['instructions'] : [],
+                'instructions' => $instructions,
             ];
         }
 
