@@ -97,6 +97,8 @@ Route::prefix('api')->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\
     Route::get('/trips/active', [ApiController::class, 'getActiveTrips']);
     Route::get('/trip/{tripId}/route', [ApiController::class, 'getTripRoute'])->whereNumber('tripId');
     Route::get('/trip/{tripId}/eta', [ApiController::class, 'getTripEta'])->whereNumber('tripId');
+    Route::get('/traffic/flow/{zoom}/{x}/{y}.png', [ApiController::class, 'getTomTomTrafficFlowTile'])->whereNumber('zoom')->whereNumber('x')->whereNumber('y');
+    Route::get('/gas-stations', [ApiController::class, 'getNearbyGasStations']);
     Route::post('/trip/start', [ApiController::class, 'startTrip']);
     Route::get('/analytics/dashboard', [ApiController::class, 'getDashboardAnalytics']);
     Route::get('/notifications', [ApiController::class, 'getNotifications']);

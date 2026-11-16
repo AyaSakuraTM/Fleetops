@@ -1166,6 +1166,8 @@ public function getMyActiveDispatches(): void
                 'travelMode' => 'car',
                 'routeType' => 'fastest',
                 'maxAlternatives' => 2,
+                'instructionsType' => 'text',
+                'language' => 'en-US',
                 'key' => trim($apiKey),
             ]);
 
@@ -1226,6 +1228,28 @@ public function getMyActiveDispatches(): void
                 continue;
             }
 
+            $guidance = $route['guidance']['instructions'] ?? [];
+            $instructions = [];
+            if (is_array($guidance)) {
+                foreach ($guidance as $instruction) {
+                    if (!is_array($instruction)) {
+                        continue;
+                    }
+                    $message = trim((string) ($instruction['message'] ?? $instruction['instruction'] ?? ''));
+                    if ($message === '') {
+                        continue;
+                    }
+                    $instructions[] = [
+                        'text' => $message,
+                        'street' => trim((string) ($instruction['street'] ?? '')),
+                        'distance_meters' => is_numeric($instruction['routeOffsetInMeters'] ?? null)
+                            ? (float) $instruction['routeOffsetInMeters']
+                            : null,
+                        'maneuver' => (string) ($instruction['maneuver'] ?? ''),
+                    ];
+                }
+            }
+
             $normalizedRoutes[] = [
                 'summary' => [
                     'distance' => (float) $summary['lengthInMeters'],
@@ -1237,6 +1261,7 @@ public function getMyActiveDispatches(): void
                         : null,
                 ],
                 'geometry' => $geometry,
+                'instructions' => $instructions,
             ];
         }
 
@@ -1245,6 +1270,129 @@ public function getMyActiveDispatches(): void
         }
 
         return ['routes' => $normalizedRoutes, 'source' => 'tomtom', 'traffic_aware' => true];
+    }
+
+    /**
+     * GET /api/gas-stations?lat={latitude}&lng={longitude}&radius={meters}
+     * Return nearby OpenStreetMap fuel stations, ranked by straight-line distance.
+     */
+    public function getNearbyGasStations(): void
+    {
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User', 'Staff']);
+
+        $lat = filter_var($_GET['lat'] ?? null, FILTER_VALIDATE_FLOAT);
+        $lng = filter_var($_GET['lng'] ?? null, FILTER_VALIDATE_FLOAT);
+        $radius = filter_var($_GET['radius'] ?? 5000, FILTER_VALIDATE_INT);
+        if ($lat === false || $lng === false || $lat < -90 || $lat > 90 || $lng < -180 || $lng > 180
+            || $radius === false || $radius < 250 || $radius > 10000) {
+            $this->jsonResponse(['success' => false, 'error' => 'Valid coordinates and a radius between 250 and 10000 meters are required.'], 422);
+            return;
+        }
+        if (!function_exists('curl_init')) {
+            $this->jsonResponse(['success' => false, 'error' => 'Gas station search is temporarily unavailable.'], 503);
+            return;
+        }
+
+        $query = '[out:json][timeout:15];(node["amenity"="fuel"](around:' . (int) $radius . ',' . (float) $lat . ',' . (float) $lng . ');way["amenity"="fuel"](around:' . (int) $radius . ',' . (float) $lat . ',' . (float) $lng . ');relation["amenity"="fuel"](around:' . (int) $radius . ',' . (float) $lat . ',' . (float) $lng . '););out center tags;';
+        $curl = curl_init('https://overpass-api.de/api/interpreter');
+        curl_setopt_array($curl, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => http_build_query(['data' => $query]),
+            CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/x-www-form-urlencoded'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 18,
+            CURLOPT_USERAGENT => 'FleetopsMap/1.0 (OpenStreetMap fuel station lookup)',
+        ]);
+        $body = curl_exec($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+
+        $response = is_string($body) ? json_decode($body, true) : null;
+        if ($status < 200 || $status >= 300 || !is_array($response) || !is_array($response['elements'] ?? null)) {
+            $this->jsonResponse(['success' => false, 'error' => 'OpenStreetMap fuel station data could not be loaded. Please try again shortly.'], 502);
+            return;
+        }
+
+        $stations = [];
+        foreach ($response['elements'] as $element) {
+            $point = $element['center'] ?? $element;
+            if (!is_array($point) || !is_numeric($point['lat'] ?? null) || !is_numeric($point['lon'] ?? null)) {
+                continue;
+            }
+            $distanceKm = $this->haversineDistance((float) $lat, (float) $lng, (float) $point['lat'], (float) $point['lon']);
+            $tags = is_array($element['tags'] ?? null) ? $element['tags'] : [];
+            $stations[] = [
+                'id' => (string) ($element['type'] ?? 'node') . '/' . (string) ($element['id'] ?? ''),
+                'name' => trim((string) ($tags['name'] ?? $tags['brand'] ?? 'Fuel station')),
+                'brand' => trim((string) ($tags['brand'] ?? '')),
+                'lat' => (float) $point['lat'],
+                'lng' => (float) $point['lon'],
+                'distance_km' => round($distanceKm, 2),
+                'address' => trim(implode(', ', array_filter([
+                    $tags['addr:housenumber'] ?? null,
+                    $tags['addr:street'] ?? null,
+                    $tags['addr:city'] ?? null,
+                ]))),
+                'opening_hours' => trim((string) ($tags['opening_hours'] ?? '')),
+            ];
+        }
+        usort($stations, fn ($left, $right) => $left['distance_km'] <=> $right['distance_km']);
+        $this->jsonResponse([
+            'success' => true,
+            'center' => ['lat' => (float) $lat, 'lng' => (float) $lng],
+            'radius_meters' => (int) $radius,
+            'stations' => array_slice($stations, 0, 60),
+            'attribution' => '© OpenStreetMap contributors',
+        ]);
+    }
+
+    /**
+     * GET /api/traffic/flow/{zoom}/{x}/{y}.png
+     * Proxy TomTom raster traffic tiles so the API key is never sent to the browser.
+     */
+    public function getTomTomTrafficFlowTile(int $zoom, int $x, int $y): void
+    {
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User', 'Staff']);
+
+        if ($zoom < 0 || $zoom > 19 || $x < 0 || $y < 0 || $x >= (1 << $zoom) || $y >= (1 << $zoom)) {
+            http_response_code(404);
+            exit;
+        }
+
+        $apiKey = getenv('TOMTOM_API_KEY');
+        if ($apiKey === false || trim($apiKey) === '' || !function_exists('curl_init')) {
+            http_response_code(503);
+            header('Content-Type: image/png');
+            exit;
+        }
+
+        $url = 'https://api.tomtom.com/traffic/map/4/tile/flow/relative0/'
+            . $zoom . '/' . $x . '/' . $y . '.png?'
+            . http_build_query(['key' => trim($apiKey), 'tileSize' => 256]);
+
+        $curl = curl_init($url);
+        curl_setopt_array($curl, [
+            CURLOPT_HTTPHEADER => ['Accept: image/png'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 12,
+        ]);
+        $image = curl_exec($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $contentType = (string) curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
+        curl_close($curl);
+
+        if (!is_string($image) || $status < 200 || $status >= 300 || stripos($contentType, 'image/png') === false) {
+            http_response_code(502);
+            header('Content-Type: image/png');
+            exit;
+        }
+
+        header('Content-Type: image/png');
+        header('Cache-Control: public, max-age=60');
+        echo $image;
+        exit;
     }
 
     private function calculateRouteColor(array $trip, float $speed): string
@@ -1325,6 +1473,9 @@ public function getMyActiveDispatches(): void
             'alternative_routes' => [
                 'target_count' => 3,
             ],
+            'instructions' => true,
+            'instructions_format' => 'text',
+            'language' => 'en',
         ]);
         if ($requestBody === false) {
             throw new \RuntimeException('Unable to encode the OpenRouteService routing request.');
@@ -1505,6 +1656,32 @@ public function getMyActiveDispatches(): void
                 }
             }
 
+            $instructions = is_array($route['instructions'] ?? null) ? $route['instructions'] : [];
+            if ($instructions === []) {
+                $segments = $routeFormat === 'routes'
+                    ? ($route['segments'] ?? [])
+                    : ($route['properties']['segments'] ?? []);
+                if (is_array($segments)) {
+                    foreach ($segments as $segment) {
+                        foreach (($segment['steps'] ?? []) as $step) {
+                            if (!is_array($step)) {
+                                continue;
+                            }
+                            $instruction = trim((string) ($step['instruction'] ?? ''));
+                            if ($instruction === '') {
+                                continue;
+                            }
+                            $instructions[] = [
+                                'text' => $instruction,
+                                'street' => trim((string) ($step['name'] ?? '')),
+                                'distance_meters' => is_numeric($step['distance'] ?? null) ? (float) $step['distance'] : null,
+                                'maneuver' => (string) ($step['type'] ?? ''),
+                            ];
+                        }
+                    }
+                }
+            }
+
             $timeMins = (int)round((float)$summary['duration'] / 60);
             $routeOptions[] = [
                 'route_number' => count($routeOptions) + 1,
@@ -1518,6 +1695,7 @@ public function getMyActiveDispatches(): void
                 'traffic_delay_mins' => isset($summary['traffic_delay_seconds']) && is_numeric($summary['traffic_delay_seconds'])
                     ? (int) round(((float) $summary['traffic_delay_seconds']) / 60)
                     : null,
+                'instructions' => $instructions,
             ];
         }
 
