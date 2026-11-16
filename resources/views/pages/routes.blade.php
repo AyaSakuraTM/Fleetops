@@ -941,8 +941,14 @@
         if (!panel || !list) return;
         list.replaceChildren();
         const steps = Array.isArray(instructions) ? instructions : [];
-        panel.hidden = steps.length === 0;
-        steps.forEach((step, index) => {
+        // Omit the redundant initial departure prompt when the provider returns one.
+        const hasProviderInstructions = steps.length > 0;
+        const displaySteps = hasProviderInstructions &&
+            /^\s*leave\b/i.test(String(steps[0]?.text || ''))
+            ? steps.slice(1)
+            : steps;
+        panel.hidden = displaySteps.length === 0;
+        displaySteps.forEach((step, index) => {
             const item = document.createElement('li');
             const number = document.createElement('span');
             number.className = 'route-instruction-number';
@@ -952,7 +958,7 @@
             item.append(number, text);
             list.appendChild(item);
         });
-        if (steps.length === 0) {
+        if (!hasProviderInstructions) {
             panel.hidden = false;
             const note = document.createElement('li');
             note.textContent = 'Turn-by-turn road guidance is unavailable for this route provider. Traffic-aware route geometry and ETA remain available.';
