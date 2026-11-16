@@ -113,6 +113,34 @@
     }
     .dispatch-trip-status { display: block; margin-top: 4px; color: var(--muted); font-size: 0.68rem; text-align: right; }
     .map-header-tools { justify-content: flex-end; }
+
+    /* Fullscreen expands the map canvas to fill the viewport. */
+    .map-view-card:fullscreen {
+        width: 100vw;
+        height: 100vh;
+        max-width: none;
+        max-height: none;
+        display: flex;
+        flex-direction: column;
+        border: 0;
+        border-radius: 0;
+        background: var(--surface);
+    }
+    .map-view-card:fullscreen #fleet-map {
+        flex: 1 1 auto;
+        width: 100%;
+        height: auto !important;
+        min-height: 0;
+    }
+    .map-view-card:fullscreen .map-header-tools {
+        top: 16px;
+        left: 16px;
+        right: 16px;
+    }
+    .map-view-card:fullscreen .map-route-legend {
+        bottom: 16px;
+        left: 16px;
+    }
     @media (max-width: 420px) {
         .route-options { grid-template-columns: 1fr; }
     }
@@ -1465,14 +1493,25 @@
         }
     }
 
+    function refreshFullscreenMapSize() {
+        // Recalculate Leaflet's dimensions without panning or changing zoom.
+        requestAnimationFrame(() => {
+            if (map) map.invalidateSize({ pan: false, animate: false });
+        });
+    }
+
     function toggleFullscreenMap() {
         const elem = document.querySelector('.map-view-card');
         if (!document.fullscreenElement) {
-            elem.requestFullscreen().catch(err => console.error(err));
+            elem.requestFullscreen()
+                .then(refreshFullscreenMapSize)
+                .catch(err => console.error(err));
         } else {
             document.exitFullscreen();
         }
     }
+
+    document.addEventListener('fullscreenchange', refreshFullscreenMapSize);
 
     function focusSelectedVehicleRoute() {
         if (activeRoutePolyline) {
