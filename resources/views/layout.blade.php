@@ -464,6 +464,72 @@
         .nav-item { padding: 12px 12px !important; }
         .quick-item, .sb-menu-item, .form-control, .btn-primary, .btn-secondary { min-height: 44px; }
       }
+
+      /* Global dark-mode contrast fixes for page-specific hard-coded styles */
+      [data-theme="dark"] {
+        color-scheme: dark;
+        --bg:#0d1421; --surface:#162032; --text:#e8edf7; --muted:#a4b3c9;
+        --border:#2a3b55; --accent:#6f8cff; --accent-light:rgba(111,140,255,.18);
+        --shadow:0 4px 24px rgba(0,0,0,.35),0 1px 4px rgba(0,0,0,.25);
+      }
+      [data-theme="dark"] body,[data-theme="dark"] .app-shell,[data-theme="dark"] .main-panel {
+        background:var(--bg)!important;color:var(--text)!important;
+      }
+      [data-theme="dark"] .card,[data-theme="dark"] .fleet-table-card,[data-theme="dark"] .chart-card,
+      [data-theme="dark"] .table-card,[data-theme="dark"] .content-card,[data-theme="dark"] .details-item,
+      [data-theme="dark"] .maintenance-issue-card,[data-theme="dark"] .integration-card,
+      [data-theme="dark"] .gps-simulator-box,[data-theme="dark"] .settings-card,
+      [data-theme="dark"] .settings-section,[data-theme="dark"] .trip-expenses-panel,
+      [data-theme="dark"] .panel,[data-theme="dark"] .panel-card,[data-theme="dark"] .stat-card,
+      [data-theme="dark"] .hero-card,[data-theme="dark"] .modal-card {
+        background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important;
+        box-shadow:var(--shadow);
+      }
+      [data-theme="dark"] .hero-card {background:linear-gradient(110deg,#162032,#1b2a43)!important;}
+      [data-theme="dark"] .page-title,[data-theme="dark"] .fleet-title,[data-theme="dark"] .card-title,
+      [data-theme="dark"] .panel h1,[data-theme="dark"] .panel h2,[data-theme="dark"] .panel h3,
+      [data-theme="dark"] .panel h4,[data-theme="dark"] .card h1,[data-theme="dark"] .card h2,
+      [data-theme="dark"] .card h3,[data-theme="dark"] .card h4,[data-theme="dark"] .modal-card h1,
+      [data-theme="dark"] .modal-card h2,[data-theme="dark"] .modal-card h3,[data-theme="dark"] .modal-card h4,
+      [data-theme="dark"] .vehicle-id-text,[data-theme="dark"] .view-link,
+      [data-theme="dark"] .details-summary-header h2,[data-theme="dark"] .stat-value,
+      [data-theme="dark"] .fleet-table td,[data-theme="dark"] .fleet-table th,
+      [data-theme="dark"] .trip-expenses-table td,[data-theme="dark"] .trip-expenses-table th {
+        color:var(--text)!important;
+      }
+      [data-theme="dark"] .fleet-subtitle,[data-theme="dark"] .details-label,
+      [data-theme="dark"] .plate-text-lg,[data-theme="dark"] .settings-help,
+      [data-theme="dark"] .stat-heading,[data-theme="dark"] .stat-desc,
+      [data-theme="dark"] .card small,[data-theme="dark"] .card p,[data-theme="dark"] .panel p {
+        color:var(--muted)!important;
+      }
+      [data-theme="dark"] .fleet-table-card,[data-theme="dark"] .fleet-table,
+      [data-theme="dark"] .fleet-table thead,[data-theme="dark"] .fleet-table tbody,
+      [data-theme="dark"] .trip-expenses-table,[data-theme="dark"] .dashboard-grid .card {
+        background:var(--surface)!important;border-color:var(--border)!important;
+      }
+      [data-theme="dark"] .fleet-table th,[data-theme="dark"] .trip-expenses-table th {
+        background:#1c2a40!important;color:#b8c7dc!important;border-color:var(--border)!important;
+      }
+      [data-theme="dark"] .fleet-table td,[data-theme="dark"] .trip-expenses-table td {
+        background:transparent!important;color:#dbe5f2!important;border-color:var(--border)!important;
+      }
+      [data-theme="dark"] .fleet-table tbody tr:hover {background:#1c2b42!important;}
+      [data-theme="dark"] .status-filters-bar .status-filter-btn:not(.active),
+      [data-theme="dark"] .btn-export {background:#24334b!important;color:#e8edf7!important;border-color:var(--border)!important;}
+      [data-theme="dark"] .dashboard-grid .card .card-title,
+      [data-theme="dark"] .dashboard-grid .card .stat-value {color:#edf3fc!important;}
+      [data-theme="dark"] .dashboard-grid .card .stat-desc {color:#aebdd2!important;}
+      [data-theme="dark"] input:not([type=checkbox]):not([type=radio]),
+      [data-theme="dark"] select,[data-theme="dark"] textarea,[data-theme="dark"] .form-control {
+        background-color:#101b2c!important;color:#e8edf7!important;border-color:#344761!important;
+      }
+      [data-theme="dark"] input::placeholder,[data-theme="dark"] textarea::placeholder {color:#91a2bb!important;opacity:1;}
+      [data-theme="dark"] select option {background:#162032;color:#e8edf7;}
+      [data-theme="dark"] label {color:#cbd7e7;}
+      [data-theme="dark"] .modal-backdrop {background:rgba(2,8,18,.78)!important;}
+      [data-theme="dark"] hr,[data-theme="dark"] .divider {border-color:var(--border)!important;}
+      [data-theme="dark"] .table-wrapper,[data-theme="dark"] .table-responsive {background:transparent!important;}
     </style>
 </head>
 <body>
