@@ -171,6 +171,7 @@
         <div class="map-view-card">
             <div class="map-header-tools">
                 <div class="map-action-buttons">
+                    <label class="map-btn"><input type="checkbox" id="traffic-overlay-toggle"> Live traffic</label>
                     <button class="map-btn" onclick="recenterMap()" title="Recenter Map">🎯 Recenter</button>
                     <button class="map-btn" onclick="toggleFullscreenMap()" title="Full Screen">⛶ Fullscreen</button>
                 </div>
@@ -285,7 +286,6 @@
                         </div>
                     </div>
                     <div class="map-feature-controls">
-                        <label><input type="checkbox" id="traffic-overlay-toggle"> Show live traffic flow</label>
                         <button type="button" id="gas-station-search" onclick="findNearbyGasStations()">⛽ Nearby gas stations</button>
                     </div>
                     <div class="map-feature-status" id="gas-station-status" aria-live="polite">Gas stations are searched within 5 km of the selected vehicle</div>
