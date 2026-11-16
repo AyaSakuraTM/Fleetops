@@ -200,6 +200,83 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
     .fuel-proof-links { min-width: 125px; }
     .fuel-proof-links a { display: block; width: fit-content; margin: 2px 0; }
     .fuel-empty { padding: 30px 20px !important; text-align: center; color: var(--muted); }
+
+    /* Keep the fuel-log dialog inside the viewport and scroll its form content. */
+    #fuel-modal {
+        align-items: center;
+        justify-content: center;
+        overflow-y: auto;
+        padding: 16px;
+    }
+    #fuel-modal .modal-card {
+        display: flex;
+        flex-direction: column;
+        width: min(100%, 640px);
+        max-height: calc(100vh - 32px);
+        max-height: calc(100dvh - 32px);
+        min-height: 0;
+        padding: 22px;
+        overflow: hidden;
+    }
+    #fuel-modal .modal-header,
+    #fuel-modal .fuel-modal-copy {
+        flex: 0 0 auto;
+    }
+    #fuel-form {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        min-height: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+        padding: 2px 5px 0 0;
+    }
+    #fuel-form .fuel-form-actions {
+        position: sticky;
+        bottom: 0;
+        z-index: 2;
+        flex: 0 0 auto;
+        margin: 8px -5px 0 0;
+        padding: 12px 5px 2px 0;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+    }
+    #fuel-modal .fuel-input-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 14px;
+        row-gap: 0;
+    }
+    #fuel-modal .fuel-field label {
+        color: var(--text);
+        font-size: .92rem;
+        line-height: 1.4;
+    }
+    #fuel-modal .form-control {
+        min-width: 0;
+        box-sizing: border-box;
+    }
+    #fuel-modal input[type="file"].form-control {
+        padding: 8px;
+        font-size: .82rem;
+    }
+    #fuel-modal input[type="file"]::file-selector-button {
+        margin-right: 8px;
+        padding: 7px 10px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--accent-light);
+        color: var(--text);
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    #fuel-modal .fuel-help,
+    #fuel-modal .fuel-gauge-label {
+        font-size: .8rem;
+        line-height: 1.4;
+    }
     .modal-header .eyebrow { margin: 0 0 4px; }
     .modal-header h3 { margin: 0; }
     .fuel-modal-copy { margin: 0 0 18px; color: var(--muted); font-size: .88rem; }
@@ -220,6 +297,16 @@ $driverOptions = $dashboard['driverOptions'] ?? collect();
         .fuel-search-wrap { width: 100%; }
         .fuel-log-panel th, .fuel-log-panel td { padding: 11px 12px; }
         .fuel-input-grid { grid-template-columns: 1fr; gap: 0; }
+        #fuel-modal { padding: 10px; }
+        #fuel-modal .modal-card {
+            width: 100%;
+            max-height: calc(100vh - 20px);
+            max-height: calc(100dvh - 20px);
+            padding: 16px;
+            border-radius: 16px;
+        }
+        #fuel-modal .fuel-input-grid { grid-template-columns: 1fr; }
+        #fuel-modal .fuel-form-actions button { flex: 1 1 0; min-width: 0; }
     }
 </style>
 
