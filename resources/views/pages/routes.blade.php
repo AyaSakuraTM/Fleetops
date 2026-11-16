@@ -46,6 +46,21 @@
         box-shadow: inset 3px 0 0 var(--teal);
         background: rgba(23, 162, 184, 0.09);
     }
+    .map-feature-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:12px; }
+    .map-feature-controls label { display:inline-flex; align-items:center; gap:6px; color:var(--text); font-size:.78rem; }
+    .map-feature-controls button { padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--text); cursor:pointer; font-size:.78rem; }
+    .map-feature-controls button:disabled { opacity:.6; cursor:wait; }
+    .map-feature-status { margin-top:7px; color:var(--muted); font-size:.74rem; }
+    .map-feature-list { display:grid; gap:7px; margin-top:8px; }
+    .map-feature-item { padding:8px 10px; border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:.78rem; }
+    .map-feature-item strong { display:block; margin-bottom:3px; }
+    .route-instructions { margin-top:12px; }
+    .route-instructions h4, .gas-station-results h4 { margin:0 0 8px; color:var(--text); font-size:.88rem; }
+    .route-instruction-list { display:grid; gap:7px; margin:0; padding:0; list-style:none; }
+    .route-instruction-list li { display:grid; grid-template-columns:25px minmax(0,1fr); gap:8px; align-items:start; padding:8px; border-radius:8px; background:var(--surface); color:var(--text); font-size:.78rem; }
+    .route-instruction-number { display:grid; width:23px; height:23px; place-items:center; border-radius:50%; background:rgba(23,162,184,.14); color:var(--teal); font-weight:800; }
+    .gas-station-icon { background:transparent; border:0; }
+    .gas-station-pin { display:grid; width:27px; height:27px; place-items:center; border:2px solid white; border-radius:50%; background:#0f766e; color:white; box-shadow:0 2px 8px rgba(0,0,0,.3); font-size:14px; }
     .route-option-label { font-size: 0.8rem; font-weight: 800; }
     .route-option-summary { color: var(--muted); font-size: 0.74rem; line-height: 1.3; }
     .route-destination-icon, .live-location-icon { background: transparent; border: 0; }
@@ -264,6 +279,16 @@
                             <span class="route-selection-count" id="route-selection-count"></span>
                         </div>
                         <div class="route-options" id="route-options" role="group" aria-label="Select a driving route"></div>
+                        <div class="map-feature-controls">
+                            <label><input type="checkbox" id="traffic-overlay-toggle"> Show live traffic flow</label>
+                            <button type="button" id="gas-station-search" onclick="findNearbyGasStations()">⛽ Nearby gas stations</button>
+                        </div>
+                        <div class="map-feature-status" id="gas-station-status" aria-live="polite">Gas stations are searched within 5 km of the selected vehicle</div>
+                        <div class="gas-station-results" id="gas-station-results"></div>
+                        <div class="route-instructions" id="route-instructions" hidden>
+                            <h4>Road-by-road directions</h4>
+                            <ol class="route-instruction-list" id="route-instruction-list"></ol>
+                        </div>
                     </div>
 
                     <!-- Arrival Monitoring Action Box -->
@@ -394,6 +419,9 @@
     let vehicleMarkers = {};
     let activeRoutePolyline = null;
     let activeTrafficPolyline = null;
+    let trafficFlowLayer = null;
+    let gasStationLayer = null;
+    let activeRouteInstructions = [];
     let routePolylines = [];
     let activeOriginMarker = null;
     let activeDestinationMarker = null;
@@ -485,6 +513,22 @@
             maxZoom: 19,
             attribution: '&copy; OpenStreetMap contributors | Logistics 2 Fleet Tracker'
         }).addTo(map);
+
+        trafficFlowLayer = L.tileLayer(apiBasePath + '/traffic/flow/{z}/{x}/{y}.png', {
+            minZoom: 0,
+            maxZoom: 19,
+            opacity: 0.72,
+            attribution: '&copy; TomTom Traffic'
+        });
+        gasStationLayer = L.layerGroup().addTo(map);
+
+        const trafficToggle = document.getElementById('traffic-overlay-toggle');
+        if (trafficToggle) {
+            trafficToggle.addEventListener('change', () => {
+                if (trafficToggle.checked) trafficFlowLayer.addTo(map);
+                else if (map.hasLayer(trafficFlowLayer)) map.removeLayer(trafficFlowLayer);
+            });
+        }
 
         // Manual map interaction takes priority over live-follow mode.
         // This lets users zoom out or pan around without the next GPS poll
@@ -766,6 +810,8 @@
 
                     setTripEndpointMarkers(t.origin_coords, t.dest_coords);
                     drawRoutePolylines(routes.slice(0, 3), t.route_color, t.eta);
+                    activeRouteInstructions = routes[0]?.instructions || [];
+                    renderRouteInstructions(activeRouteInstructions);
                     // Only an explicit active-dispatch selection may zoom to its route.
                     // Background refreshes and blue live-location marker clicks must not move the map.
                     if (focusMapAfterLoad && activeVehicleId !== null) {
@@ -818,6 +864,13 @@
         clearTripEndpointMarkers();
         routeOptions = [];
         selectedRouteIndex = 0;
+        activeRouteInstructions = [];
+        renderRouteInstructions([]);
+        if (gasStationLayer) gasStationLayer.clearLayers();
+        const gasResults = document.getElementById('gas-station-results');
+        const gasStatus = document.getElementById('gas-station-status');
+        if (gasResults) gasResults.replaceChildren();
+        if (gasStatus) gasStatus.textContent = 'Gas stations are searched within 5 km of the selected vehicle';
 
         const panel = document.getElementById('route-selection-panel');
         const list = document.getElementById('route-options');
@@ -882,6 +935,113 @@
         return Number.isFinite(minutes) ? `${Math.round(minutes)} mins` : 'Travel time unavailable';
     }
 
+    function renderRouteInstructions(instructions) {
+        const panel = document.getElementById('route-instructions');
+        const list = document.getElementById('route-instruction-list');
+        if (!panel || !list) return;
+        list.replaceChildren();
+        const steps = Array.isArray(instructions) ? instructions : [];
+        panel.hidden = steps.length === 0;
+        steps.forEach((step, index) => {
+            const item = document.createElement('li');
+            const number = document.createElement('span');
+            number.className = 'route-instruction-number';
+            number.textContent = String(index + 1);
+            const text = document.createElement('span');
+            text.textContent = String(step.text || 'Continue along the route');
+            item.append(number, text);
+            list.appendChild(item);
+        });
+        if (steps.length === 0) {
+            panel.hidden = false;
+            const note = document.createElement('li');
+            note.textContent = 'Turn-by-turn road guidance is unavailable for this route provider. Traffic-aware route geometry and ETA remain available.';
+            list.appendChild(note);
+        }
+    }
+
+    function findNearbyGasStations() {
+        const button = document.getElementById('gas-station-search');
+        const status = document.getElementById('gas-station-status');
+        const results = document.getElementById('gas-station-results');
+        const vehicle = fleetData.find(item => Number(item.id) === Number(activeVehicleId));
+        if (!vehicle || !hasValidCoordinates(vehicle)) {
+            if (status) status.textContent = 'Select a vehicle with a valid GPS location first.';
+            return;
+        }
+        if (button) button.disabled = true;
+        if (status) status.textContent = 'Searching OpenStreetMap for nearby fuel stations…';
+        if (results) results.replaceChildren();
+
+        const params = new URLSearchParams({
+            lat: String(Number(vehicle.latitude)),
+            lng: String(Number(vehicle.longitude)),
+            radius: '5000'
+        });
+        fetch(apiBasePath + '/gas-stations?' + params.toString(), { headers: { Accept: 'application/json' } })
+            .then(response => response.json().then(data => {
+                if (!response.ok || !data.success) throw new Error(data.error || 'Gas station search failed.');
+                return data;
+            }))
+            .then(data => {
+                gasStationLayer.clearLayers();
+                const stations = Array.isArray(data.stations) ? data.stations : [];
+                stations.forEach(station => {
+                    const marker = L.marker([station.lat, station.lng], {
+                        icon: L.divIcon({
+                            html: '<span class="gas-station-pin">⛽</span>',
+                            className: 'gas-station-icon',
+                            iconSize: [31, 31],
+                            iconAnchor: [15, 15]
+                        })
+                    }).addTo(gasStationLayer);
+                    const details = [station.brand, station.address].filter(Boolean).join(' · ');
+                    marker.bindPopup('<strong>' + escapeMapText(station.name) + '</strong><br>' +
+                        escapeMapText(station.distance_km + ' km away') +
+                        (details ? '<br>' + escapeMapText(details) : ''));
+                });
+
+                if (results) {
+                    results.replaceChildren();
+                    const heading = document.createElement('h4');
+                    heading.textContent = 'Nearest gas stations';
+                    results.appendChild(heading);
+                    const list = document.createElement('div');
+                    list.className = 'map-feature-list';
+                    stations.slice(0, 5).forEach(station => {
+                        const item = document.createElement('div');
+                        item.className = 'map-feature-item';
+                        const name = document.createElement('strong');
+                        name.textContent = station.name;
+                        const distance = document.createElement('span');
+                        distance.textContent = station.distance_km + ' km away' + (station.brand ? ' · ' + station.brand : '');
+                        item.append(name, distance);
+                        item.addEventListener('click', () => {
+                            map.panTo([station.lat, station.lng]);
+                            gasStationLayer.eachLayer(marker => {
+                                if (marker.getLatLng().lat === station.lat && marker.getLatLng().lng === station.lng) marker.openPopup();
+                            });
+                        });
+                        list.appendChild(item);
+                    });
+                    results.appendChild(list);
+                }
+                if (status) status.textContent = stations.length
+                    ? 'Showing ' + stations.length + ' fuel stations within 5 km. Data: ' + data.attribution
+                    : 'No mapped fuel stations found within 5 km.';
+            })
+            .catch(error => {
+                if (status) status.textContent = error.message;
+            })
+            .finally(() => { if (button) button.disabled = false; });
+    }
+
+    function escapeMapText(value) {
+        return String(value ?? '').replace(/[&<>"']/g, character => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[character]));
+    }
+
     function renderRouteOptions() {
         const panel = document.getElementById('route-selection-panel');
         const list = document.getElementById('route-options');
@@ -918,6 +1078,8 @@
         if (!route) return;
 
         selectedRouteIndex = routePosition;
+        activeRouteInstructions = Array.isArray(route.instructions) ? route.instructions : [];
+        renderRouteInstructions(activeRouteInstructions);
         const selectedColor = activeRouteColor === 'red' ? '#e74c3c' : (activeRouteColor === 'yellow' ? '#f39c12' : '#2ec4b6');
 
         routePolylines.forEach((polyline, index) => {
