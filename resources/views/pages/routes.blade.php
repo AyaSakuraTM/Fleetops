@@ -945,7 +945,7 @@
         // the first meaningful road/turn instruction instead.
         const hasProviderInstructions = steps.length > 0;
         const displaySteps = hasProviderInstructions &&
-            /^\\s*leave\\b/i.test(String(steps[0]?.text || ''))
+            /^\s*leave\b/i.test(String(steps[0]?.text || ''))
             ? steps.slice(1)
             : steps;
         panel.hidden = displaySteps.length === 0;
