@@ -76,7 +76,9 @@ class SettingsController extends Controller
         abort_unless($path && Storage::disk('local')->exists($path), 404);
 
         return response()->file(Storage::disk('local')->path($path), [
-            'Cache-Control' => 'private, no-store',
+            // The profile-photo URL includes a version query parameter, so a new
+            // upload gets a fresh URL while this private browser copy stays reusable.
+            'Cache-Control' => 'private, max-age=2592000',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
