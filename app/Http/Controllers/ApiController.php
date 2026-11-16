@@ -1166,6 +1166,8 @@ public function getMyActiveDispatches(): void
                 'travelMode' => 'car',
                 'routeType' => 'fastest',
                 'maxAlternatives' => 2,
+                'instructionsType' => 'text',
+                'language' => 'en-US',
                 'key' => trim($apiKey),
             ]);
 
@@ -1226,6 +1228,28 @@ public function getMyActiveDispatches(): void
                 continue;
             }
 
+            $guidance = $route['guidance']['instructions'] ?? [];
+            $instructions = [];
+            if (is_array($guidance)) {
+                foreach ($guidance as $instruction) {
+                    if (!is_array($instruction)) {
+                        continue;
+                    }
+                    $message = trim((string) ($instruction['message'] ?? $instruction['instruction'] ?? ''));
+                    if ($message === '') {
+                        continue;
+                    }
+                    $instructions[] = [
+                        'text' => $message,
+                        'street' => trim((string) ($instruction['street'] ?? '')),
+                        'distance_meters' => is_numeric($instruction['routeOffsetInMeters'] ?? null)
+                            ? (float) $instruction['routeOffsetInMeters']
+                            : null,
+                        'maneuver' => (string) ($instruction['maneuver'] ?? ''),
+                    ];
+                }
+            }
+
             $normalizedRoutes[] = [
                 'summary' => [
                     'distance' => (float) $summary['lengthInMeters'],
@@ -1237,6 +1261,7 @@ public function getMyActiveDispatches(): void
                         : null,
                 ],
                 'geometry' => $geometry,
+                'instructions' => $instructions,
             ];
         }
 
@@ -1245,6 +1270,54 @@ public function getMyActiveDispatches(): void
         }
 
         return ['routes' => $normalizedRoutes, 'source' => 'tomtom', 'traffic_aware' => true];
+    }
+
+    /**
+     * GET /api/traffic/flow/{zoom}/{x}/{y}.png
+     * Proxy TomTom raster traffic tiles so the API key is never sent to the browser.
+     */
+    public function getTomTomTrafficFlowTile(int $zoom, int $x, int $y): void
+    {
+        $this->authorizeRole(['Driver', 'Dispatcher', 'Logistics Officer', 'Admin', 'User', 'Staff']);
+
+        if ($zoom < 0 || $zoom > 19 || $x < 0 || $y < 0 || $x >= (1 << $zoom) || $y >= (1 << $zoom)) {
+            http_response_code(404);
+            exit;
+        }
+
+        $apiKey = getenv('TOMTOM_API_KEY');
+        if ($apiKey === false || trim($apiKey) === '' || !function_exists('curl_init')) {
+            http_response_code(503);
+            header('Content-Type: image/png');
+            exit;
+        }
+
+        $url = 'https://api.tomtom.com/traffic/map/4/tile/flow/relative0/'
+            . $zoom . '/' . $x . '/' . $y . '.png?'
+            . http_build_query(['key' => trim($apiKey), 'tileSize' => 256]);
+
+        $curl = curl_init($url);
+        curl_setopt_array($curl, [
+            CURLOPT_HTTPHEADER => ['Accept: image/png'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_TIMEOUT => 12,
+        ]);
+        $image = curl_exec($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $contentType = (string) curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
+        curl_close($curl);
+
+        if (!is_string($image) || $status < 200 || $status >= 300 || stripos($contentType, 'image/png') === false) {
+            http_response_code(502);
+            header('Content-Type: image/png');
+            exit;
+        }
+
+        header('Content-Type: image/png');
+        header('Cache-Control: public, max-age=60');
+        echo $image;
+        exit;
     }
 
     private function calculateRouteColor(array $trip, float $speed): string
@@ -1518,6 +1591,7 @@ public function getMyActiveDispatches(): void
                 'traffic_delay_mins' => isset($summary['traffic_delay_seconds']) && is_numeric($summary['traffic_delay_seconds'])
                     ? (int) round(((float) $summary['traffic_delay_seconds']) / 60)
                     : null,
+                'instructions' => is_array($route['instructions'] ?? null) ? $route['instructions'] : [],
             ];
         }
 
